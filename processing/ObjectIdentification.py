@@ -2,7 +2,7 @@ from scipy import spatial
 import numpy as np
 import skimage.measure
 from skimage.measure import regionprops 
-from EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
+from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from ObjectMatching import ObjectMatching
 
 class ObjectIdentification: 
