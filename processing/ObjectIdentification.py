@@ -5,90 +5,96 @@ from skimage.measure import regionprops
 from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from ObjectMatching import ObjectMatching
 
-class ObjectIdentification: 
-    """
-    ObjectIdentification implements a single intensity threshold or enhanced watershed algorithm for object identification. 
-    The single threshold method uses the skimage.measure.label function while the enhanced watershed algorithm comes
-    the hagelslag Python package developed by Gagne et al. (2016) 
- 
-    There are also additional functions for quality controling the objects identified. These include filtering out objects 
-    based on area, merging near-by objects, and removing objects with shorter durations. 
-
-    Example Usage: 
+def label( self, input_data, method='watershed', return_object_properties=True, **params):
+    """ Identifies and labels objects in input_data using a single threshold or 
+        the enhanced watershed algorithm (Lakshmanan et al. 2009, Gagne et al. 2016)
+            
+        Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
         
-    import sys
-    sys.path.append('/home/monte.flora/NEWSeProbs/verification')
-    from ObjectIdentification import ObjectIdentification 
-
-    input_data, time_max_indices = ? 
-
-    obj_id = ObjectIdentification( ) 
-    object_labels, object_props = obj_id.label( input_data, method = 'single_threshold', bdry_thresh = 0.0038 ) 
-    
-    qc_params = {'min_area' : 12, 'min_time': 2, 'merge_thresh' : 4 } 
-    qc_object_labels, qc_object_props = obj_id.quality_control( object_labels, object_props, input_data, time_max_indices, **qc_params)
-    
-    """
-    def label( self, input_data, method='watershed', return_object_properties=True, **params):
-        """ Labels the input_data using a single threshold or enhanced watershed algorithm 
-            ARGS, 
-                : input_data, 2D numpy array of data to be labelled 
-                : method    , string declaring the object labelling method ( 'single_threshold' or 'watershed' ) 
-                : object_properties, Boolean, if True return the object properties calculated by skimage.measure.regionprops
-                : params, dictionary with the parameters for the respective labelling method selected.
-                : watershed:
+        Lakshmanan, V., K. Hondl, and R. Rabin, 2009: An Efficient, General-Purpose Technique for Identifying Storm Cells 
+        in Geospatial Images. J. Atmos. Oceanic Technol., 26, 523–537, https://doi.org/10.1175/2008JTECHA1153.1
+        
+        Gagne II, D. J., A. McGovern, N. Snook, R. Sobash, J. Labriola, J. K. Williams, S. E. Haupt, and M. Xue, 2016: 
+        Hagelslag: Scalable object-based severe weather analysis and forecasting. Proceedings of the Sixth Symposium on 
+        Advances in Modeling and Analysis Using Python, New Orleans, LA, Amer. Meteor. Soc., 447.
+            
+        ARGS, 
+            : input_data, 2D numpy array of data to be labelled 
+            : method    , string declaring the object labelling method ( 'single_threshold' or 'watershed' ) 
+            : returnobject_properties, Boolean, if True return the object properties calculated by skimage.measure.regionprops
+            : params, dictionary with the parameters for the respective labelling method selected.
+                if watershed:
                     min_thresh (int): minimum pixel value for pixel to be part of a object
                     data_increment (int): quantization interval. Use 1 if you don't want to quantize (See Lakshaman et al. 2009) 
                     max_thresh (int): values greater than max_thresh are treated as the maximum threshold
                     size_threshold_pixels (int): clusters smaller than this threshold are ignored.
                     delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.            
-                  single_threshold:
+                if single_threshold:
                     bdry_thresh (float): intensity threshold used for the 'single_threshold' object ID method
-             RETURNS, 
-                 object_labels, input_data labelled 
-                 object_props, properties of the labelled regions in object_labels (optional, if object_properties = True )     
-        """
-        if method == 'watershed': 
-            if 'local_max_area' not in list(params.keys()): 
-                params['local_max_area'] = 16
-            watershed_method = EnhancedWatershed( min_thresh = params['min_thresh'],
-                    max_thresh = params['max_thresh'], 
-                    data_increment = params['data_increment'],
-                    delta         = params['delta'],
-                    size_threshold_pixels = params['size_threshold_pixels'],
-                    local_max_area = params['local_max_area']) 
-            object_labels = watershed_method.label( input_data ) 
-        elif method == 'single_threshold': 
-                    # Binarize the input array based on the boundary threshold 
-                    binary_array  = self._binarize( input_data, params['bdry_thresh'] )
-                    # Label the binary_array using skimage 
-                    object_labels = skimage.measure.label(binary_array).astype(int)
+        RETURNS, 
+            object_labels, input_data labelled 
+            object_props, properties of the labelled regions in object_labels (optional, if return_object_properties = True )    
+    """
+    if method == 'watershed': 
+        if 'local_max_area' not in list(params.keys()): 
+            params['local_max_area'] = 16
+        # Initialize the EnhancedWatershed objects
+        watershed_method = EnhancedWatershed( min_thresh = params['min_thresh'],
+                                              max_thresh = params['max_thresh'], 
+                                              data_increment = params['data_increment'],
+                                              delta = params['delta'],
+                                              size_threshold_pixels = params['size_threshold_pixels'],
+                                              local_max_area = params['local_max_area']) 
+        object_labels = watershed_method.label( input_data ) 
+    elif method == 'single_threshold': 
+        # Binarize the input array based on the boundary threshold 
+        binary_array  = self._binarize( input_data, params['bdry_thresh'] )
+        # Label the binary_array using skimage 
+        object_labels = skimage.measure.label(binary_array).astype(int)
         
-        if return_object_properties: 
-            # Calculate the object properties 
-            object_props  = regionprops( object_labels, input_data )    
-            return (object_labels, object_props)
-        else: 
-            return object_labels
+    if return_object_properties: 
+        # Calculate the object properties 
+        object_props  = regionprops( object_labels, input_data )    
+        return (object_labels, object_props)
+    else: 
+        return object_labels
 
-    def _binarize( self, input_data, bdry_thresh ):
-        """ Binarizes input_data with the object boundary threshold"""
-        binary  = np.where( np.round(input_data, 10) >= round(bdry_thresh, 10) , 1, 0) 
-        binary  = binary.astype(int)
-        return binary 
+def _binarize( self, input_data, bdry_thresh ):
+    """ Binarizes input_data with the object boundary threshold"""
+    binary  = np.where( np.round(input_data, 10) >= round(bdry_thresh, 10) , 1, 0) 
+    binary  = binary.astype(int)
+    return binary 
 
 class QualityControl:
     '''
-    QualityControl is a class for applying quality control to objects identified by ObjectIdentification.
+    QualityControl can multiple quality control measures to the identified objects.
+    These include: 
+        - Minimum Area
+        - Merging
+        - Maximum Length
+        - Duration
+        - Maximum Value Within
+        - Matched to Local Storm Reports
     '''
     def quality_control( self, input_data, object_labels, object_properties, qc_params ): 
         """
         Applies quality control to identified objects. 
 
         ARGs, 
-            : object_labels , 2D numpy array of labeled objects
-            : object_props  , object properties calculated by skimage.measure.regionprops for object labels
-            : input_data    , original 2D numpy array of data from which object_labels was generated from
+            : object_labels, 2D numpy array of labeled objects
+            : object_properties, object properties calculated by skimage.measure.regionprops for object labels
+            : input_data, original 2D numpy array of data from which object_labels was generated from
+            : qc_params,  List of tuples or ordered dictionary of the quality control option to apply 
+                          and the corresponding criteria. E.g., to apply a minimum area threshold 
+                          qc_params = [('min_area', 10)]. 
+                Potential quality control
+                 - 'min_area', removing objects below the minimum area (in number of pixels)
+                 - 'merge_thresh', merging objects together closer than a minimum distance (in gridpoints)
+                 - 'max_length', removing objects with a major axis length greater the given criterion (in gridpoints)
+                 - 'min_time', removing objects with duration less than the given criterion (in time steps) 
+                 - 'max_thresh', removing objects if the 75th percentile value is less than the given criterion
+                 - 'match_to_lsr', remove objects not matched to an local storm report
+                For additional details, read the functions below. 
  
         RETURNS,
             2-tuple of (object_labels, object_props) 
@@ -213,7 +219,8 @@ class QualityControl:
             : input_data, 2D numpy array, original data from which the object labels were generated from.
                                           Used to recalculate the regionprops after qualtiy control is applied. 
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
-            : merge_thresh, float, merging distance (objects closer than the merging distance are combined together; in grid point distance)
+            : merge_thresh, float, merging distance (objects closer than the merging distance 
+                                   are combined together; in grid point distance)
         '''
         qc_object_labels = np.copy( self.object_labels ) 
         original_labels = np.unique(qc_object_labels)[1:] #[label for label in np.unique(qc_object_labels)[1:]]
@@ -235,8 +242,8 @@ class QualityControl:
                             y_idx, x_idx = np.where( qc_object_labels == label )
                             xy_stack = np.dstack([x_idx.ravel(), y_idx.ravel()])[0]
                             region_tree = scipy.spatial.cKDTree( xy_stack )
-                            remaining_labels = np.unique(qc_object_labels)[1:] #[label for label in np.unique(qc_object_labels)[1:]]
-
+                            remaining_labels = np.unique(qc_object_labels)[1:]
+                            
         remaining_labels = np.unique(qc_object_labels)[1:]
         for i, label in enumerate(remaining_labels):
             qc_object_labels[qc_object_labels==label] = int(i+1) 
@@ -292,7 +299,9 @@ class QualityControl:
             else:
                 maj_min_ratio = region.major_axis_length/region.minor_axis_length
 
-            objects_b_dict[region.label] = {'Major Axis Length':region.major_axis_length, 'Area':region.area, 'Maj/Min Ratio': maj_min_ratio}
+            objects_b_dict[region.label] = {'Major Axis Length':region.major_axis_length, 
+                                            'Area':region.area, 
+                                            'Maj/Min Ratio': maj_min_ratio}
 
         #print objects_b_dict
         matched_object_set_a_labels, matched_object_set_b_labels, cent_dist_of_matched_objects = obj_match.match_objects( object_labels_a, object_labels_b )
