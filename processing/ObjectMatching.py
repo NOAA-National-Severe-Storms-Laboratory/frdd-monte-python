@@ -1,7 +1,5 @@
-import scipy
 from scipy import spatial
 import numpy as np
-import skimage.measure 
 from skimage.measure import regionprops
 import math 
 import collections
@@ -13,30 +11,26 @@ class ObjectMatching:
     ObjectMatching uses a total interest score (Davis et al. 2006) based on centroid and minimum displacement
     to match two sets of objects.
     Attributes:
-        dist_max (int), maximum distance criterion for both centroid and minimum displacement (in grid-point distance)
+        cent_dist_max (int), maximum distance criterion for centroid displacement (in grid-point distance)
+        min_dist_max (int), maximum distance criterion for minimum displacement (in grid-point distance)
         time_max (int), maximum time displacment for matched objects (in minutes) (optional)
         score_thresh (float), minimum total interest score to be considered a match (default = 0.2)
         one_to_one (boolean), Allows for region_b (e.g., forecasts) to be matched more than once
-                      = True, if matches must be one_to_one 
-        only_min_dist (boolean), = True for total interest score based solely on minimum displacement  
-
-    Example usage: 
-        *Import the class 
-            from ObjectMatching import ObjectMatching 
-        *Initialize the class
-            obj_match = ObjectMatching( dist_max = 5, one_to_one = True ) # for a 3-km grid spacing, dist_max=5 is equal to a 15 km maximum distance
-        *Call the match_objects method
-            matched_object_set_a_labels, matched_object_set_b_labels, cent_dist_of_matched_objects = obj_match.match_objects( object_set_a, object_set_b )
+                      = True, if matches must be one_to_one   
+    Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
    
    """
-    def __init__( self, dist_max, time_max=1, score_thresh = 0.2, one_to_one = False, only_min_dist = False ):
-        self.dist_max = dist_max
+    def __init__( self, min_dist_max, cent_dist_max=None, time_max=1, score_thresh = 0.2, one_to_one = False):
+        self.min_dist_max = min_dist_max
+        self.cent_dist_max = cent_dist_max
         self.time_max = time_max
         self.score_thresh = score_thresh
         self.one_to_one    = one_to_one
-        self.only_min_dist = only_min_dist
+        self.only_min_dist = False
+        if cent_dist_max == None:
+            self.only_min_dist = True
 
-    def match_objects( self, object_set_a, object_set_b, times_a, times_b ):
+    def match_objects( self, object_set_a, object_set_b, times_a=None, times_b=None ):
         """ Match two set of objects valid at a single or multiple times.
         Args:
             object_set_a, 2D array or list of 2D arrays, object labels at a single or multiple times
@@ -47,8 +41,20 @@ class ObjectMatching:
             Lists of matched labels in set a, matched labels in set b,
             and tuples of y- and x- components of centroid displacement of matched pairs
         """
-        regionprops_set_a = [ self.calc_object_props( set_a ) for set_a in object_set_a ]
-        regionprops_set_b = [ self.calc_object_props( set_b ) for set_b in object_set_b ]
+        # The following code is expecting a list of 2D arrays (for the different times). However, you can provide 
+        # just a single 2D array if time is not being consider for object matching
+        if len(np.shape(object_set_a)) != 3:
+            object_set_a = list(object_set_a)
+            times_a = ['20000101 0100']
+            times_b = times_a
+        if len(np.shape(object_set_b)) != 3:
+            object_set_b = list(object_set_b)
+            
+        if self.time_max == 1 and (times_a != None or times_b != None):
+            raise ValueError('Trying to match object from different times, but time_max is set to 1')
+        
+        regionprops_set_a = [ self._calc_object_props( set_a ) for set_a in object_set_a ]
+        regionprops_set_b = [ self._calc_object_props( set_b ) for set_b in object_set_b ]
         
         all_times_a = []; all_times_b = []
         for n, set_a in enumerate(object_set_a):
@@ -60,12 +66,16 @@ class ObjectMatching:
         matched_object_set_b_labels  = [ ]         
         cent_dist_of_matched_objects = [ ]
     
-        possible_matched_pairs, cent_disp_of_possible_matched_pairs = self.find_possible_matches( regionprops_set_a, regionprops_set_b, all_times_a, all_times_b ) 
+        possible_matched_pairs, cent_disp_of_possible_matched_pairs = self._find_possible_matches( regionprops_set_a, 
+                                                                                                 regionprops_set_b, 
+                                                                                                 all_times_a, 
+                                                                                                 all_times_b ) 
 
         sorted_possible_matched_pairs  = sorted( possible_matched_pairs, key=possible_matched_pairs.get, reverse=True ) 
         for label_a, label_b in sorted_possible_matched_pairs:
             if self.one_to_one:
-                if label_a not in matched_object_set_a_labels and label_b not in matched_object_set_b_labels: #otherwise pair[0] has already been matched!
+                #otherwise pair[0] has already been matched!
+                if label_a not in matched_object_set_a_labels and label_b not in matched_object_set_b_labels: 
                     matched_object_set_a_labels.append( label_a )
                     matched_object_set_b_labels.append( label_b )
                     cent_dist_of_matched_objects.append( cent_disp_of_possible_matched_pairs[(label_a, label_b)] ) 
@@ -77,7 +87,7 @@ class ObjectMatching:
         
         return matched_object_set_a_labels, matched_object_set_b_labels, cent_dist_of_matched_objects
     
-    def calc_object_props( self, label_image ):
+    def _calc_object_props( self, label_image ):
           """ Calculate region properties for objects.
           Args:
                 label_image, 2D array with object labels
@@ -86,7 +96,7 @@ class ObjectMatching:
           """
           return regionprops( label_image.astype(int), label_image.astype(int) )     
 
-    def find_possible_matches( self, regionprops_set_a, regionprops_set_b, times_a, times_b ): 
+    def _find_possible_matches( self, regionprops_set_a, regionprops_set_b, times_a, times_b ): 
         """ Finds matches that exceed the minimum total interest score criterion.
         Args: 
             regionprops_set_a, skimage.measure.regionprops for object_set_a
@@ -111,14 +121,18 @@ class ObjectMatching:
             for region_b, time_b in zip(regionprops_set_b, times_b):
                 region_b_label = (region_b.label, time_b)
                 dist_btw_region_a_and_region_b, _ = kdtree_a.query( region_b.coords )
-                tis, dx, dy  = self.total_interest_score( region_a.centroid, region_b.centroid, time_a, time_b, dist_btw_region_a_and_region_b )
+                tis, dx, dy  = self._total_interest_score( region_a.centroid, 
+                                                           region_b.centroid, 
+                                                           time_a, 
+                                                           time_b, 
+                                                           dist_btw_region_a_and_region_b )
                 if round( tis, 4 ) > round( self.score_thresh, 4 ):
                     possible_matched_pairs[(region_a_label, region_b_label)] = round(tis, 4 )
                     cent_disp_of_possible_matched_pairs[(region_a_label, region_b_label)] = (dy, dx)         
 
         return possible_matched_pairs, cent_disp_of_possible_matched_pairs
 
-    def total_interest_score( self, region_a_cent, region_b_cent, time_a, time_b, dist_array, option=True ):
+    def _total_interest_score( self, region_a_cent, region_b_cent, time_a, time_b, dist_array, option=True ):
         """ Calculates the Total Interest Score (based on Skinner et al. 2018).
             Args:
                 region_a_cent, centroid of region_a
@@ -129,25 +143,27 @@ class ObjectMatching:
             Returns:
                 Total Interest Score (float)
         """
-        if self.dist_max == 0:
-            self.dist_max = 1e-8                 
+        if self.cent_dist_max == 0:
+            self.cent_dist_max = 1e-8
+        if self.min_dist_max == 0:
+            self.min_dist_max = 1e-8
 
-        min_dist        = np.amin( dist_array )
-        min_numerator    = (self.dist_max - min_dist )
+        min_dist = np.amin( dist_array )
+        min_numerator = (self.min_dist_max - min_dist )
         if min_numerator < 0: 
             norm_min_dist = 0 
         
-        norm_min_dist    = min_numerator / (self.dist_max)
+        norm_min_dist = min_numerator / (self.min_dist_max)
         if self.only_min_dist:
             return norm_min_dist
         else:
             dx = region_b_cent[1] - region_a_cent[1]
             dy = region_b_cent[0] - region_a_cent[0]
             cent_dist = math.hypot(dx, dy)
-            cent_numerator = (self.dist_max - cent_dist )
+            cent_numerator = (self.cent_dist_max - cent_dist )
             if cent_numerator < 0:
                 cent_numerator = 0
-            norm_cent_dist = cent_numerator / (self.dist_max)
+            norm_cent_dist = cent_numerator / (self.cent_dist_max)
             time_disp = self.calc_time_difference( time_a, time_b)
             norm_time_disp = (self.time_max - time_disp ) / (self.time_max)
             if norm_time_disp < 0:
@@ -180,7 +196,7 @@ class ObjectMatching:
 
 def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
     '''
-     Match forecast mesocyclone tracks to local storm reports.
+     Match forecast objects to local storm reports.
      Args:
           object_properties,
           lsr_points, 
