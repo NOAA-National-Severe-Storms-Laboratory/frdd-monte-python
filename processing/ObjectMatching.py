@@ -1,4 +1,4 @@
-from scipy import spatial
+import scipy 
 import numpy as np
 from skimage.measure import regionprops
 import math 
@@ -20,10 +20,13 @@ class ObjectMatching:
     Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
    
     """
-    def __init__( self, min_dist_max, cent_dist_max=None, time_max=1, score_thresh = 0.2, one_to_one = False):
+    def __init__( self, min_dist_max, cent_dist_max=None, time_max=0, score_thresh = 0.2, one_to_one = False):
         self.min_dist_max = min_dist_max
         self.cent_dist_max = cent_dist_max
-        self.time_max = time_max
+        if time_max < 1:
+            self.time_max = 1
+        else:
+            self.time_max = time_max
         self.score_thresh = score_thresh
         self.one_to_one    = one_to_one
         self.only_min_dist = False
@@ -44,14 +47,11 @@ class ObjectMatching:
         # The following code is expecting a list of 2D arrays (for the different times). However, you can provide 
         # just a single 2D array if time is not being consider for object matching
         if len(np.shape(object_set_a)) != 3:
-            object_set_a = list(object_set_a)
+            object_set_a = [object_set_a]
             times_a = ['20000101 0100']
             times_b = times_a
         if len(np.shape(object_set_b)) != 3:
-            object_set_b = list(object_set_b)
-            
-        if self.time_max == 1 and (times_a != None or times_b != None):
-            raise ValueError('Trying to match object from different times, but time_max is set to 1')
+            object_set_b = [object_set_b]
         
         regionprops_set_a = [ self._calc_object_props( set_a ) for set_a in object_set_a ]
         regionprops_set_b = [ self._calc_object_props( set_b ) for set_b in object_set_b ]
@@ -84,6 +84,10 @@ class ObjectMatching:
                     matched_object_set_a_labels.append( label_a )
                     matched_object_set_b_labels.append( label_b )
                     cent_dist_of_matched_objects.append( cent_disp_of_possible_matched_pairs[(label_a, label_b)] )
+        
+        if len(times_a) == 1:
+            matched_object_set_a_labels = [label for (label, _) in matched_object_set_a_labels]
+            matched_object_set_b_labels = [label for (label, _) in matched_object_set_b_labels]
         
         return matched_object_set_a_labels, matched_object_set_b_labels, cent_dist_of_matched_objects
     
