@@ -31,36 +31,53 @@ class EnsembleData:
         elif base_path == 'wofs_data':
             self.basePath  = join( join( config.WOFS_DATA_PATH, self.date_dir), self.time_dir)
 
-    def generate_filename_list(self, time_indexs, tag, verbose=False):
+    def _build_filename_list(self, time_indexs, tag, verbose=False):
         '''
         Generates the file names to be loaded. 
+        Args, 
+            : time_indexs, list of time indexs to load (e.g., [0,1,2,3]) 
+            : tag, string for Pat's different netCDF files 
+                 options = 'ENV', 'ENS'
+            : verbose, boolean, if True print statements 
+        Return, 
+            : files, a list of strings of the different file names to load 
         '''
         all_files  = os.listdir( self.basePath )
         files  = [ ]
         if 'summary_files' in self.basePath:
             for t in time_indexs:
                 #print 'news-e_%s_%02d*' % (tag, t )
-                fname = glob(join( self.basePath, 'news-e_%s_%02d*' % (tag, t )))
+                fname = glob(join( self.basePath, 'news-e_{}_{02d}*'.format(tag, t )))
                 try:
                     files.append( nc.Dataset( fname[0], 'r' ))     
                 except IndexError:
                     if verbose:
-                        print ("fname is empty!", self.basePath, "may not have files in it at time index ", t)
+                        print ("{} is empty or does not exist! \ 
+                               {} may not have files in it at time index {}".format(fname, self.basePath, t)
+        
         elif 'WOFS_DATA' in self.basePath:
             for t in time_indexs:
                 fname = glob(join( self.basePath, '*_%s.nc' % ( t )))
                 try:
                     files.append( nc.Dataset( fname[0], 'r' )) 
                 except IndexError:
-                    print ("fname is empty!")
-                    print((self.basePath, "may not have files in it at time index ", t))
+                    if verbose:
+                        print ("{} is empty or does not exist! \ 
+                               {} may not have files in it at time index {}".format(fname, self.basePath, t)
         return files
 
     def load(self, variables, time_indexs, tag=None ):
         '''
-        Load Ensemble data.
+        Load Ensemble data into array of shape (NT, NV, NE, NY, NX)
+        
+        Args,
+            : variables, list of variable names in the netCDF files
+            : time_indexs, list of time indexs to load (e.g., [0,1,2,3])
+            : tag, string for Pat's different netCDF files 
+                 options = 'ENV', 'ENS'
 
-        Returns numpy array of data, shape =(NT,NV,NE,NY,NX) 
+        Returns,
+            : ens_data, numpy array of data, shape =(NT,NV,NE,NY,NX) 
         ''' 
         ens_data  = [ ] 
         append = ens_data.append
@@ -82,6 +99,15 @@ def calc_time_max( input_data, time_axis=0, argmax=False ):
         '''
         Calculate the time max swath.
         optional to calculate argmax over the time axis as well
+        
+        Args, 
+            : input_data, array-like data with time as an axis 
+            : time_axis, integer index of the time axis of input_data
+            : argmax, boolean, if True also returns the np.argmax 
+                               of input_data along time axis
+        Return,
+            : time_max, np.amax of input_data along the given time_axis 
+            : time_argmax, np.argmax of input_data along the given time_axis (optional) 
         '''
         time_max = np.amax( input_data, axis = time_axis )
         if argmax:
