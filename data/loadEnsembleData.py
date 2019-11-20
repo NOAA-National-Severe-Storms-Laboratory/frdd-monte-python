@@ -81,7 +81,7 @@ class EnsembleData:
         ''' 
         ens_data  = [ ] 
         append = ens_data.append
-        files  = self.generate_filename_list( time_indexs=time_indexs, tag=tag)
+        files  = self._build_filename_list( time_indexs=time_indexs, tag=tag)
         for f in files:
             data_per_file = [ ] #nv, ne, ny, nx
             append([f.variables[var][:] for var in variables]) 
