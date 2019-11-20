@@ -20,7 +20,7 @@ def label( self, input_data, method='watershed', return_object_properties=True, 
             
         ARGS, 
             : input_data, 2D numpy array of data to be labelled 
-            : method    , string declaring the object labelling method ( 'single_threshold' or 'watershed' ) 
+            : method, string declaring the object labelling method ( 'single_threshold' or 'watershed' ) 
             : returnobject_properties, Boolean, if True return the object properties calculated by skimage.measure.regionprops
             : params, dictionary with the parameters for the respective labelling method selected.
                 if watershed:
