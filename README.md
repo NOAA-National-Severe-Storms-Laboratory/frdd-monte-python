@@ -7,4 +7,8 @@ MontePython is an object-based severe storm forecasting system originally built 
 - numpy 
 - scipy
 - scikit-image
-- hagelslag
+- hagelslag (https://github.com/djgagne/hagelslag)
+
+### Usage
+A Jupyter notebook is located in the demos directory that showcases the functionality of the package. 
+
