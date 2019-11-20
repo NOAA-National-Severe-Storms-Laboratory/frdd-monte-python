@@ -79,7 +79,6 @@ class QualityControl:
     def quality_control( self, input_data, object_labels, object_properties, qc_params ): 
         """
         Applies quality control to identified objects. 
-
         ARGs, 
             : object_labels, 2D numpy array of labeled objects
             : object_properties, object properties calculated by skimage.measure.regionprops for object labels
@@ -336,12 +335,4 @@ class QualityControl:
             storm_labels[rot_labels == rot_label] = df.loc[ df['object label'] == strm_label, 'Storm Label'].values[0]
         
         return storm_labels
-
-
-    
-
-
-
-
-
 

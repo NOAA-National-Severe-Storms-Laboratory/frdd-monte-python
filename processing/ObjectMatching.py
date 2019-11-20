@@ -19,7 +19,7 @@ class ObjectMatching:
                       = True, if matches must be one_to_one   
     Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
    
-   """
+    """
     def __init__( self, min_dist_max, cent_dist_max=None, time_max=1, score_thresh = 0.2, one_to_one = False):
         self.min_dist_max = min_dist_max
         self.cent_dist_max = cent_dist_max
@@ -219,7 +219,4 @@ def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
             else:
                 matched_fcst_objects[region.label] = 0.0
         return matched_fcst_objects 
-
-
-
 
