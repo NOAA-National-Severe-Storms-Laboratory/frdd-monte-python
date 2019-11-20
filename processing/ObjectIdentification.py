@@ -2,22 +2,15 @@ from scipy import spatial
 import numpy as np
 import skimage.measure
 from skimage.measure import regionprops 
-from hagelslag.processing.EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
+from EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 from ObjectMatching import ObjectMatching
 
-def label( self, input_data, method='watershed', return_object_properties=True, **params):
+def label(input_data, params, method='watershed', return_object_properties=True):
     """ Identifies and labels objects in input_data using a single threshold or 
         the enhanced watershed algorithm (Lakshmanan et al. 2009, Gagne et al. 2016)
             
-        Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
-        
-        Lakshmanan, V., K. Hondl, and R. Rabin, 2009: An Efficient, General-Purpose Technique for Identifying Storm Cells 
-        in Geospatial Images. J. Atmos. Oceanic Technol., 26, 523–537, https://doi.org/10.1175/2008JTECHA1153.1
-        
-        Gagne II, D. J., A. McGovern, N. Snook, R. Sobash, J. Labriola, J. K. Williams, S. E. Haupt, and M. Xue, 2016: 
-        Hagelslag: Scalable object-based severe weather analysis and forecasting. Proceedings of the Sixth Symposium on 
-        Advances in Modeling and Analysis Using Python, New Orleans, LA, Amer. Meteor. Soc., 447.
-            
+        Example usage provided in a jupyter notebook at github.com/monte-flora/MontePython/
+         
         ARGS, 
             : input_data, 2D numpy array of data to be labelled 
             : method, string declaring the object labelling method ( 'single_threshold' or 'watershed' ) 
@@ -28,7 +21,8 @@ def label( self, input_data, method='watershed', return_object_properties=True, 
                     data_increment (int): quantization interval. Use 1 if you don't want to quantize (See Lakshaman et al. 2009) 
                     max_thresh (int): values greater than max_thresh are treated as the maximum threshold
                     size_threshold_pixels (int): clusters smaller than this threshold are ignored.
-                    delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.            
+                    delta (int): maximum number of data increments the cluster is allowed to range over. 
+                                 Larger d results in clusters over larger scales.            
                 if single_threshold:
                     bdry_thresh (float): intensity threshold used for the 'single_threshold' object ID method
         RETURNS, 
@@ -48,7 +42,7 @@ def label( self, input_data, method='watershed', return_object_properties=True, 
         object_labels = watershed_method.label( input_data ) 
     elif method == 'single_threshold': 
         # Binarize the input array based on the boundary threshold 
-        binary_array  = self._binarize( input_data, params['bdry_thresh'] )
+        binary_array  = _binarize( input_data, params['bdry_thresh'] )
         # Label the binary_array using skimage 
         object_labels = skimage.measure.label(binary_array).astype(int)
         
@@ -59,7 +53,7 @@ def label( self, input_data, method='watershed', return_object_properties=True, 
     else: 
         return object_labels
 
-def _binarize( self, input_data, bdry_thresh ):
+def _binarize(input_data, bdry_thresh):
     """ Binarizes input_data with the object boundary threshold"""
     binary  = np.where( np.round(input_data, 10) >= round(bdry_thresh, 10) , 1, 0) 
     binary  = binary.astype(int)
