@@ -216,11 +216,10 @@ def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
         return matched_fcst_objects
     else:
         for region in object_properties:
-            kdtree = spatial.cKDTree( region.coords )
+            kdtree = scipy.spatial.cKDTree( region.coords )
             dist_btw_region_and_lsr, _ = kdtree.query( lsr_points )
             if round( np.amin( dist_btw_region_and_lsr ), 10) < dist_to_lsr:
                 matched_fcst_objects[region.label] = 1.0
             else:
                 matched_fcst_objects[region.label] = 0.0
         return matched_fcst_objects 
-

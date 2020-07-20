@@ -1,16 +1,27 @@
-from scipy import spatial
+import scipy
 import numpy as np
 import skimage.measure
+from math import sqrt
 from skimage.measure import regionprops 
-from EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
-from ObjectMatching import ObjectMatching
+from .EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
+from .ObjectMatching import ObjectMatching
+import xarray as xr 
+import random
+import copy 
 
-def label(input_data, params, method='watershed', return_object_properties=True):
+def label_regions( input_data, params, method='watershed', return_object_properties=True):
     """ Identifies and labels objects in input_data using a single threshold or 
         the enhanced watershed algorithm (Lakshmanan et al. 2009, Gagne et al. 2016)
             
-        Example usage provided in a jupyter notebook at github.com/monte-flora/MontePython/
-         
+        Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
+        
+        Lakshmanan, V., K. Hondl, and R. Rabin, 2009: An Efficient, General-Purpose Technique for Identifying Storm Cells 
+        in Geospatial Images. J. Atmos. Oceanic Technol., 26, 523–537, https://doi.org/10.1175/2008JTECHA1153.1
+        
+        Gagne II, D. J., A. McGovern, N. Snook, R. Sobash, J. Labriola, J. K. Williams, S. E. Haupt, and M. Xue, 2016: 
+        Hagelslag: Scalable object-based severe weather analysis and forecasting. Proceedings of the Sixth Symposium on 
+        Advances in Modeling and Analysis Using Python, New Orleans, LA, Amer. Meteor. Soc., 447.
+            
         ARGS, 
             : input_data, 2D numpy array of data to be labelled 
             : method, string declaring the object labelling method ( 'single_threshold' or 'watershed' ) 
@@ -21,8 +32,7 @@ def label(input_data, params, method='watershed', return_object_properties=True)
                     data_increment (int): quantization interval. Use 1 if you don't want to quantize (See Lakshaman et al. 2009) 
                     max_thresh (int): values greater than max_thresh are treated as the maximum threshold
                     size_threshold_pixels (int): clusters smaller than this threshold are ignored.
-                    delta (int): maximum number of data increments the cluster is allowed to range over. 
-                                 Larger d results in clusters over larger scales.            
+                    delta (int): maximum number of data increments the cluster is allowed to range over. Larger d results in clusters over larger scales.            
                 if single_threshold:
                     bdry_thresh (float): intensity threshold used for the 'single_threshold' object ID method
         RETURNS, 
@@ -30,15 +40,15 @@ def label(input_data, params, method='watershed', return_object_properties=True)
             object_props, properties of the labelled regions in object_labels (optional, if return_object_properties = True )    
     """
     if method == 'watershed': 
-        if 'local_max_area' not in list(params.keys()): 
-            params['local_max_area'] = 16
+        if 'dist_btw_objects' not in list(params.keys()): 
+            params['dist_btw_objects'] = 15
         # Initialize the EnhancedWatershed objects
         watershed_method = EnhancedWatershed( min_thresh = params['min_thresh'],
                                               max_thresh = params['max_thresh'], 
                                               data_increment = params['data_increment'],
                                               delta = params['delta'],
                                               size_threshold_pixels = params['size_threshold_pixels'],
-                                              local_max_area = params['local_max_area']) 
+                                              dist_btw_objects = params['dist_btw_objects']) 
         object_labels = watershed_method.label( input_data ) 
     elif method == 'single_threshold': 
         # Binarize the input array based on the boundary threshold 
@@ -53,11 +63,300 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     else: 
         return object_labels
 
-def _binarize(input_data, bdry_thresh):
+def _binarize( input_data, bdry_thresh ):
     """ Binarizes input_data with the object boundary threshold"""
     binary  = np.where( np.round(input_data, 10) >= round(bdry_thresh, 10) , 1, 0) 
     binary  = binary.astype(int)
     return binary 
+
+def quantize_wofs_probabilities(ensemble_probabilities):
+    """
+    Quantize the discrete WOFS probabilities
+    """
+    q_data = np.round(100.*ensemble_probabilities)
+    for i, value in enumerate(np.unique(q_data)):
+        q_data[q_data==value] = i
+    return q_data
+
+def calc_dist( set1, set2 ):
+    return sqrt((set1[0] - set2[0])**2 + (set1[1] - set2[1])**2)
+
+def _fix_regions(
+                 current_region_props, 
+                 previous_labelled_data,
+                 current_labelled_data, 
+                 ):
+    '''
+    Fix regions 
+    1) Maintain all the original watershed objects 
+    2) Keep all new verison of an object if it is 'coherent'
+    '''
+    fixed_labelled_data = copy.deepcopy(previous_labelled_data)
+    num_of_changes = 0 
+    for region in current_region_props:
+        if (float(region.convex_area) / region.filled_area) < 1.5: 
+            # Coherent enough to keep 
+            fixed_labelled_data[current_labelled_data==region.label] = region.label 
+        else:
+            num_of_changes += 1   
+
+    return fixed_labelled_data, num_of_changes 
+
+def _fix_bad_pixels(labelled_data):
+    '''
+    Returns labelled regions where individual pixels 
+    are fixed
+    '''
+    new_labels = copy.deepcopy( labelled_data )
+    nonzero_points = np.where(new_labels>0)
+    nonzero_points = np.c_[nonzero_points[0].ravel(), nonzero_points[1].ravel()]
+
+    for point in nonzero_points: 
+        y = point[0]
+        x = point[1]
+        min_y = max(y-2, 0)
+        min_x = max(x-2, 0)
+        max_x = min(x+2+1, new_labels.shape[1])
+        max_y = min(y+2+1, new_labels.shape[0])
+        data = new_labels[min_y:max_y, min_x:max_x]
+        nonzero_data = data[np.nonzero(data)]
+        unique_values, their_counts = np.unique(nonzero_data, return_counts=True)
+        most_common_value = unique_values[np.argmax(their_counts)] 
+        if new_labels[y,x] != most_common_value:
+            #print (nonzero_data, np.argmax(counts), new_labels[y,x])   
+            new_labels[y,x] = most_common_value
+
+    return new_labels      
+
+
+def _get_labelled_coords(region_props):
+    '''
+    Returns a dictionary with the various coordinates of
+    alreay labelled regions as keys and their respective label as the value
+    '''
+    region_coords = { }
+    for region in region_props:
+        for coord in region.coords:
+            region_coords[(coord[0], coord[1])] = region.label 
+
+    return region_coords
+
+def _get_unlabelled_coords(original_data, labelled_data):
+    '''
+    Returns the coordinates of the non-zero, unlabelled pixels
+    '''
+    original_array = copy.deepcopy(original_data)
+    # Ignore points already assigned to an region
+    original_array[labelled_data > 0] = 0
+
+    # Get the coordinates of the points to be assigned
+    y, x = np.where(original_array > 0)
+    original_nonzero_coords = np.c_[y.ravel(), x.ravel()] 
+
+    return original_nonzero_coords
+
+def _find_the_closest_object(labelled_data, original_nonzero_coords, region_coords):
+    '''
+    For each non-zero pixel, find the closest (in eucledian distance)
+    already identified object region 
+    '''
+    labelled_array = copy.deepcopy( labelled_data ) 
+   
+    # Cycle through the nonzero coordinates
+    for unlabelled_point in original_nonzero_coords:
+        all_dist = {}
+        for labelled_point in list(region_coords.keys()):
+            all_dist[((unlabelled_point[0], unlabelled_point[1]), \
+                    (labelled_point[0], labelled_point[1]))] = calc_dist( unlabelled_point, labelled_point)
+
+        closest_coord_pair = min(all_dist, key=all_dist.get)
+        this_unlabelled_point = closest_coord_pair[0]
+        this_labelled_point = closest_coord_pair[1]
+        labelled_array[this_unlabelled_point] = region_coords[this_labelled_point]
+
+    return labelled_array
+
+
+def grow_objects(previous_region_props, previous_data_to_label, previous_labelled_data, num_of_points_to_label=[]): 
+    '''
+    Using labelled regions provided by the watershed algorithm,
+    grow objects from the original field using distance
+    to nearby objects 
+    
+    For a non-zero point in the domain not initially assigned 
+    to a labelled region, check the distance of this point
+    to every labelled point in the domain:
+    The point it is closest to, give it that label
+    but in future iterations, do not alter the original
+    labelled region with new points. BUT remove the point
+    so it is not further considered. 
+
+    Args:
+    ------------------
+    regionprops, skimage object
+    original_data, 2D numpy array of the data to be labelled
+    labelled_data, 2D numpy array of labelled regions in original_data
+
+    Returns:
+    ---------------
+    labelled_array, 2D numpy array of labelled regions 
+    '''
+    # Get the coordinates of the points to be assigned to a region
+    original_nonzero_coords = _get_unlabelled_coords(previous_data_to_label, previous_labelled_data)
+    # Get the coordinates of the points already assigned to a region
+    region_coords = _get_labelled_coords(previous_region_props)
+    # Assign unlabelled points to the label of the closest region
+    current_labelled_data = _find_the_closest_object(previous_labelled_data, original_nonzero_coords, region_coords)
+    # Fix any stray pixels 
+    current_labelled_data = _fix_bad_pixels(current_labelled_data)
+
+    return current_labelled_data
+
+def grow_objects_recursive(previous_region_props, previous_data_to_label, previous_labelled_data, num_of_points_to_label=[]): 
+    '''
+    Using labelled regions provided by the watershed algorithm,
+    grow objects from the original field using distance
+    to nearby objects 
+    
+    For a non-zero point in the domain not initially assigned 
+    to a labelled region, check the distance of this point
+    to every labelled point in the domain:
+    The point it is closest to, give it that label
+    but in future iterations, do not alter the original
+    labelled region with new points. BUT remove the point
+    so it is not further considered. 
+
+    Args:
+    ------------------
+    regionprops, skimage object
+    original_data, 2D numpy array of the data to be labelled
+    labelled_data, 2D numpy array of labelled regions in original_data
+
+    Returns:
+    ---------------
+    labelled_array, 2D numpy array of labelled regions 
+    '''
+
+    # Get the coordinates of the points to be assigned to a region
+    original_nonzero_coords = _get_unlabelled_coords(previous_data_to_label, previous_labelled_data)
+    # Get the coordinates of the points already assigned to a region
+    region_coords = _get_labelled_coords(previous_region_props)
+    # Assign unlabelled points to the label of the closest region
+    current_labelled_data = _find_the_closest_object(previous_labelled_data, original_nonzero_coords, region_coords)
+    # Fix any bad pixels
+    current_labelled_data  = _fix_bad_pixels(current_labelled_data)
+    current_region_props = regionprops( current_labelled_data.astype(int), current_labelled_data, coordinates='rc' )
+    # Fix any non-cohererent regions
+    fixed_labelled_data, current_num_of_changes = _fix_regions(
+                                                current_region_props = current_region_props,
+                                                previous_labelled_data = previous_labelled_data,
+                                                current_labelled_data = current_labelled_data
+                                             )
+    
+    fixed_region_props = regionprops( fixed_labelled_data.astype(int), fixed_labelled_data, coordinates='rc' ) 
+    num_of_points_to_label.append( np.shape(original_nonzero_coords)[0] ) 
+    
+    if (len(num_of_points_to_label) > 2) and (len(np.unique(num_of_points_to_label[-2:])) == 1):
+        # Get the coordinates of the points to be assigned to a region
+        original_nonzero_coords = _get_unlabelled_coords(previous_data_to_label, previous_labelled_data)
+        # Get the coordinates of the points already assigned to a region
+        region_coords = _get_labelled_coords(previous_region_props)
+        # Assign unlabelled points to the label of the closest region
+        current_labelled_data = _fix_bad_pixels(current_labelled_data)
+        current_labelled_data = _find_the_closest_object(previous_labelled_data, original_nonzero_coords, region_coords) 
+         
+        return current_labelled_data
+    
+    if current_num_of_changes == 0:
+        return fixed_labelled_data
+
+    elif current_num_of_changes > 0:
+        return grow_objects_recursive( 
+                     previous_region_props = fixed_region_props,
+                     previous_data_to_label = previous_data_to_label,
+                     previous_labelled_data = fixed_labelled_data,
+                     num_of_points_to_label = num_of_points_to_label
+                     )
+
+def label_ensemble_objects(ensemble_probabilities):
+    '''
+    Method for labeling probability objects. A first pass watershed method identifies
+    the key region using no minimum threshold and a large minimum area threshold. 
+    A second pass watershed method uses a higher minimum threshold to assess 
+    if an object in the first pass should be sub-divided. Finally, the remaining
+    unidentified non-zero points are clustered to existing objects based on 
+    minimum distance. Clustering ensures that all points are labeled. 
+
+    Args:
+    --------------
+    ensemble_probabilities, 2d array of ensemble probabilities (between 0-1)
+
+
+    Returns:
+    ---------------
+    full_objects, 2d array of labeled regions in ensemble probabilities
+    full_object_props, list of RegionProps from skimage.measure.regionprops
+
+    '''
+    input_data = quantize_wofs_probabilities(ensemble_probabilities)
+
+    first_pass_params = {'min_thresh': 0,
+          'max_thresh': 18,
+          'data_increment': 1,
+          'delta': 0,
+          'size_threshold_pixels': 400,
+          'dist_btw_objects': 15 }
+
+    second_pass_params = {'min_thresh': 5,
+          'max_thresh': 18,
+          'data_increment': 1,
+          'delta': 0,
+          'size_threshold_pixels': 300,
+          'dist_btw_objects': 25 }
+
+    first_pass_labels = label_regions (
+                              input_data = input_data,
+                              params = first_pass_params,
+                              return_object_properties=False
+                              )
+
+    second_pass_labels = label_regions(
+                               input_data = input_data,
+                               params = second_pass_params,
+                               return_object_properties=False
+                              )
+
+    # Adjust label of the second pass objects 
+    second_pass_labels = np.where(second_pass_labels>0, second_pass_labels+1000, 0)
+    combined_labels = np.zeros(second_pass_labels.shape, dtype=int)
+    for label in np.unique(first_pass_labels)[1:]:
+        objects_within_this_label = np.unique(second_pass_labels[first_pass_labels==label])[1:]
+        if len(objects_within_this_label) > 1:
+            for label in objects_within_this_label:
+                combined_labels[second_pass_labels==label] = label
+        else:
+            combined_labels[first_pass_labels==label] = label
+
+    # Convert labels back
+    for i, value in enumerate(np.unique(combined_labels)[1:]):
+        combined_labels[combined_labels==value] = i+1
+
+    combined_label_props = regionprops(combined_labels.astype(int), combined_labels)
+
+    full_objects = grow_objects_recursive(
+                            previous_region_props=combined_label_props,
+                            previous_data_to_label=np.copy(input_data),
+                            previous_labelled_data=np.copy(combined_labels)
+                            )
+    
+    del first_pass_labels
+    del second_pass_labels
+    del combined_labels
+
+    full_object_props = regionprops(full_objects.astype(int), ensemble_probabilities, coordinates='rc')
+
+    return full_objects, full_object_props  
+
 
 class QualityControl:
     '''
@@ -252,7 +551,7 @@ class QualityControl:
         qc_object_labels = np.zeros( self.object_labels.shape, dtype=int)
         j=1
         for region in self.object_properties:
-            kdtree = spatial.cKDTree( region.coords )
+            kdbelled_points, labelled_datatree = spatial.cKDTree( region.coords )
             dist_btw_region_and_lsr, _ = kdtree.query( self.qc_params['match_to_lsr']['lsr_points'] )
             if round( np.amin( dist_btw_region_and_lsr ), 10) < self.qc_params['match_to_lsr']['dist_to_lsr']:
                 qc_object_labels[self.object_labels == region.label] = j

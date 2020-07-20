@@ -6,10 +6,8 @@ import datetime
 import xarray as xr
 
 # Personal Modules
-import sys
-sys.path.append('/home/monte.flora/wofs/util')
-from basic_functions import personal_datetime
-import config
+from wofs.util.basic_functions import personal_datetime
+from wofs.util import config
 
 get_time = personal_datetime( )
 
@@ -70,13 +68,13 @@ class MRMSData:
 
         return ds[name].values, ds['Azimuthal Shear'].values 
 
-    def load_gridded_lsrs(self, date_dir, valid_datetime):
+    def load_gridded_lsrs(self, var, date_dir, valid_datetime):
         '''
         Load Gridded LSRS.
         '''
         fname = join( join( config.LSR_SAVE_PATH, date_dir ),  'LSRs_%s-%s.nc' % (valid_datetime[0], valid_datetime[1]))
         ds = xr.open_dataset( fname )
-        return ds['LSRs'].values
+        return ds[var].values
 
     def load_mrms_dbz( self, date_dir, valid_datetime, tag):
         '''

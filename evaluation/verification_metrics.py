@@ -15,7 +15,7 @@ class ContingencyTable:
         false_alarms = np.sum( np.where(( truths == 0) & ( forecasts == 1 ), 1, 0 ) )
         misses = np.sum( np.where(( truths == 1) & ( forecasts == 0), 1, 0 ) )
         corr_negs = np.sum( np.where(( truths == 0) & ( forecasts == 0 ),  1, 0 ) ) 
-        
+
         self.table = np.array( [ [hits, misses], [false_alarms, corr_negs]], dtype=float) 
         # Hit: self.table[0,0]
         # Miss: self.table[0,1]
@@ -135,7 +135,7 @@ def calc_prescribed_prob_value( forecast_probs, forecast_labels ):
 
 class Metrics:
     @staticmethod
-    def performance_curve( forecasts, truths, bins=np.arange(0, 1+1./18., 1./18.), deterministic=False ): 
+    def performance_curve( forecasts, truths, bins=np.arange(0, 1, 0.01), deterministic=False, roc_curve=False ): 
         ''' 
         Generates the POD and SR for a series of probability thresholds 
         to produce performance diagram (Roebber 2009) curves
@@ -147,15 +147,23 @@ class Metrics:
         else:    
             pod = np.zeros((bins.shape))
             sr = np.zeros((bins.shape))
+            if roc_curve:
+                pofd = np.zeros((bins.shape))
             for i, p in enumerate( bins ): 
                 p = round(p,5)
-                binary_fcst = np.where( forecasts >= p, 1.0, 0.0 ) 
-                table = ContingencyTable( truths, binary_fcst )
+                binary_fcst = np.where( np.round(forecasts,10) >= p, 1, 0 ) 
+                table = ContingencyTable( truths.astype(int), binary_fcst.astype(int) )
                 pod[i] = table.calc_pod( )
                 sr[i] = table.calc_sr( )
-    
-        return pod, sr
+                if roc_curve:
+                    pofd[i] = table.calc_pofd()
 
+            del table
+        if roc_curve:
+            return pod, sr, pofd 
+        else:
+            return pod, sr
+        
     @staticmethod
     def reliability_curve( forecasts, truths, bins=np.arange(0, 1+1./18., 1./18.)):
         '''

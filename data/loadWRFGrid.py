@@ -3,14 +3,26 @@ from os.path import exists, join, isdir
 from glob import glob
 import netCDF4 as nc
 from scipy.ndimage import gaussian_filter, convolve
+from wofs.util import config
+from wofs.util.news_e_post_cbook import calc_height, calc_t
+from wrf import getvar, interplevel
 
-import sys 
-sys.path.append('/home/monte.flora/wofs/util')
-import config
-from news_e_post_cbook import calc_height, calc_t
+ #if var == 'U':
+                    # Average of x-dim (nt, nz, ny, nx)
+                #     data[var].append( 0.5* (wrf_file.variables[var][0,:,:,1:]+wrf_file.variables[var][0,:,:,:-1]) )
+                    #temp.append( 0.5* (wrf_file.variables[var][0,:,:,1:]+wrf_file.variables[var][0,:,:,:-1]) )
+                #elif var == 'V':
+                    # Average over y-dim
+                #    data[var].append( 0.5* (wrf_file.variables[var][0,:,1:,:]+wrf_file.variables[var][0,:,:-1,:]))
+                #elif var in 'W':
+                    # Average over z-dim
+                #    data[var].append( 0.5* (wrf_file.variables[var][0,1:,:,:]+wrf_file.variables[var][0,:-1,:,:]) )
+                #else:
+
 
 class WRFData:
     '''
+    WRFData loads WRFOUT netcdf files. 
     '''
     def __init__(self, date, time, time_indexs=None, variables=None):
         self.date = date
@@ -18,7 +30,6 @@ class WRFData:
         self.time_indexs = time_indexs
         self.variables = variables
         self.base_path = join(self._determine_base_path(date), time) 
-        print ( self.base_path, isdir(self.base_path) )
         if not exists(self.base_path):
             self.base_path = join( join( self._determine_base_path(date), 'RLT'), time)
 
@@ -26,26 +37,31 @@ class WRFData:
         '''
         Find the correct base directory path; based on the date.
         '''
-        if isdir( join( '/work3/JTTI/HMT_FFaIR/FCST', date)):
-            return join( '/work3/JTTI/HMT_FFaIR/FCST', date)
+        if isdir( join( '/work/JTTI/HMT_FFaIR/FCST', date)):
+            return join( '/work/JTTI/HMT_FFaIR/FCST', date)
+        elif isdir( join('/scratch/wof/realtime/FCST', date)):
+            return join( '/scratch/wof/realtime/FCST', date)
         else:
-            return join( join( '/work3/wof/realtime/FCST', date[:4]), date)
+            return join( join( '/work/wof/realtime/FCST', date[:4]), date)
 
     def _generate_filename_list( self, mem_idx ):
         '''
         Gets a list of wrf filenames for a particular ensemble member.
         '''
         wrf_files = [ ]
-        in_path = join( self.base_path, 'ENS_MEM_%s' % (mem_idx))
-        # wrfout_d01_2018-05-02_00:00:00
-        all_wrf_files = list(sorted( glob(join(in_path, 'wrfout_d01*')))) 
-        if len(all_wrf_files) == 0: 
-            print(in_path) 
-            print((self.date, self.time, "No wrfout files for this ensemble member!!"))
-            print("Likely an issue with the base path.") 
+        in_path = join( self.base_path, f'ENS_MEM_{mem_idx:02d}')
+        all_wrf_files = list(sorted( glob(join(in_path, 'wrfwof_d01*')))) 
+        if len(all_wrf_files) == 0:
+            all_wrf_files = list(sorted( glob(join(in_path, 'wrfout_d01*'))))
+        if len(all_wrf_files) == 0:
+            raise IndexError (f'all_wrf_files is empty! \n Possibly an issue with the base path or files are empty for this ensemble member: \n {in_path}')
         else: 
             for t in self.time_indexs:
-                wrf_files.append( nc.Dataset( all_wrf_files[t], 'r') )  
+                try:
+                    wrf_files.append( nc.Dataset( all_wrf_files[t], 'r') )  
+                except IndexError:
+                    print( 'IndexError: list index out of range')
+                    print( 'all_wrf_files:', all_wrf_files )
 
         return wrf_files
     
@@ -61,27 +77,11 @@ class WRFData:
         wrf_files_at_mem = self._generate_filename_list( mem_idx )
         if wrf_files_at_mem == [ ]:
             return None 
-        
-        for wrf_file in wrf_files_at_mem:
-            for var in self.variables:
-                if var == 'U':
-                    # Average of x-dim (nt, nz, ny, nx)
-                    data[var].append( 0.5* (wrf_file.variables[var][0,:,:,1:]+wrf_file.variables[var][0,:,:,:-1]) )
-                    #temp.append( 0.5* (wrf_file.variables[var][0,:,:,1:]+wrf_file.variables[var][0,:,:,:-1]) )
-                elif var == 'V':
-                    # Average over y-dim
-                    data[var].append( 0.5* (wrf_file.variables[var][0,:,1:,:]+wrf_file.variables[var][0,:,:-1,:]))
-                elif var in 'W':
-                    # Average over z-dim
-                    data[var].append( 0.5* (wrf_file.variables[var][0,1:,:,:]+wrf_file.variables[var][0,:-1,:,:]) )
-                else:
-                    data[var].append( wrf_file.variables[var][0,:] ) 
-            wrf_file.close()
-            del wrf_file    
-
-        # Convert lists to numpy arrays
-        for key in list(data.keys( )):
-            data[key] = np.array( data[key] )
+      
+        wrf_file = wrf_files_at_mem[0]
+        data = {var: getvar(wrfin=wrf_file, varname=var) for var in self.variables}         
+        wrf_file.close()
+        del wrf_file    
 
         return data 
 
@@ -103,10 +103,11 @@ def integrate_over_a_layer( f, z, dz, lower, upper ):
     '''
     Integrate some function f in between layer lower - upper km AGL.
     '''
-    f[np.where(z < lower)] = 0.
-    f[np.where(z > upper)] = 0. 
+    f = f.values 
+    dz = dz.values
+    f[np.where((z < lower) | (z>upper))] = 0.
     
-    integrated_f = np.trapz(f, dx = dz[:-1], axis=0)
+    integrated_f = np.trapz(f, dx = dz[:-1, :,:], axis=0)
 
     return integrated_f
 

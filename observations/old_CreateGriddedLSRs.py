@@ -1,6 +1,5 @@
 import numpy as np
 import xarray as xr
-import itertools
 
 # Personal Imports 
 import os
@@ -20,34 +19,27 @@ get_time = personal_datetime( )
 debug = False 
 ###########################################
 
-def points_to_grid(xy_pair, nx):
-    """
-    Convert points to gridded data
-    """
-    xy_pair = [ (x,y) for x,y in xy_pair if x < nx-1 and y < nx-1 and x > 0 and y > 0 ]
-    gridded_lsr = np.zeros((nx, nx))
-    for i, pair in enumerate(xy_pair):
-        gridded_lsr[pair[0],pair[1]] = i
-
-    return gridded_lsr
-
 def worker(date, time):
     '''
     Function for multiprocessing
     '''
-    names = ['severe_hail', 'tornado', 'severe_wind']
     _, adjusted_date, time = get_time.initial_datetime( date_dir = str(date), time_dir = time)
-    for duration in [30]:
-        hail_xy, torn_xy, wind_xy, nx = load_reports( date, (adjusted_date, time), all_lsrs=False, forecast_length=duration, grid=True)
-        gridded_lsr_set = [points_to_grid(xy_pair, nx) for xy_pair in (hail_xy, torn_xy, wind_xy)] 
-        
-    data = { }
-    for pair in zip([0,5,10], ['3km', '15km', '30km']):    
-        for i, name in enumerate(names):
-            if pair[0] ==0:
-                data[f'{name}_{pair[1]}'] = (['y', 'x'], gridded_lsr_set[i])
-            else:
-                data[f'{name}_{pair[1]}'] = (['y', 'x'], maximum_filter( gridded_lsr_set[i], pair[0]))
+    for duration in [30,60]:
+        hail_xy, torn_xy, wind_xy = load_reports( date, (adjusted_date, time), all_lsrs=False, forecast_length=duration)
+        lsr_tuple
+        for xy in lsr_xy_tuple:
+
+
+
+    lsr_xy = [ (x,y) for x,y in lsr_xy if x < 249 and y < 249 and x > 0 and y > 0 ]
+    gridded_lsrs = np.zeros((250, 250))
+    for i, pair in enumerate(lsr_xy):
+        gridded_lsrs[pair[0],pair[1]] = i 
+
+    data = {'LSR_3km_grid':(['y', 'x'], gridded_lsrs),
+            'LSR_15km_grid':(['y', 'x'], maximum_filter(gridded_lsrs,5)),
+            'LSR_30km_grid':(['y', 'x'], maximum_filter(gridded_lsrs,10))
+            }
 
     ds = xr.Dataset(data) 
     fname = 'LSRs_%s-%s.nc' % (adjusted_date, time)
@@ -64,12 +56,15 @@ def worker(date, time):
 
 if debug: 
     print("\n Working in DEBUG MODE...\n") 
-    date = '20180501'; time = '0000'
-    worker( date, time )
+    date = '20170516'; time = '0000'
+    worker( date, time, kwargs={} )
 
 else:
+    multiprocessing_per_date( datetimes=datetimes, n_date_per_chunk=8, func=worker, kwargs={})
+
     dates = config.ml_dates
     times = config.observation_times
+
     run_parallel(
             func = worker,
             nprocs_to_use = 0.4,

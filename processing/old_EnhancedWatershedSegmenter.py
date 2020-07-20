@@ -34,7 +34,6 @@ class EnhancedWatershed(object):
         self.data_increment = data_increment
         self.max_thresh = max_thresh
         self.max_size = size_threshold_pixels
-        self.min_size = 6
         self.dist_btw_objects = dist_btw_objects
         self.delta = delta
         self.max_bin = int((self.max_thresh - self.min_thresh) / self.data_increment)
@@ -153,33 +152,34 @@ class EnhancedWatershed(object):
         center_keys = np.array(list(centers.keys()))[::-1]
         capture_index = 1
         foothills = []
-        # Work from high to low bins.
-        for b in center_keys:
-            bin_lower = b - 1
-            deferred_from_last[:] = deferred_to_next[:]
-            del deferred_to_next[:]
-            new_centers = len(centers[b])
-            old_centers = len(deferred_from_last)
-            tot_centers = new_centers + old_centers
-            for i in range(tot_centers):
-                # done this way to minimize memory overhead of maintaining two lists
-                if i < old_centers:
-                    center = deferred_from_last[i]
-                else:
-                    center = centers[b][i - old_centers]
-                if bin_lower < 0:
-                    bin_lower = 0
-                if marked[center] == self.UNMARKED:
-                    captured = self.set_maximum(q_data, marked, center, bin_lower, foothills, capture_index)
-                    if not captured:
-                        # decrement to lower value to see if it'll get big enough
-                        deferred_to_next.append(center)
+        for diff in range(0, self.delta + 1):
+            # Work from high to low bins.
+            for b in center_keys:
+                bin_lower = b - diff
+                deferred_from_last[:] = deferred_to_next[:]
+                del deferred_to_next[:]
+                new_centers = len(centers[b])
+                old_centers = len(deferred_from_last)
+                tot_centers = new_centers + old_centers
+                for i in range(tot_centers):
+                    # done this way to minimize memory overhead of maintaining two lists
+                    if i < old_centers:
+                        center = deferred_from_last[i]
                     else:
-                        capture_index += 1
+                        center = centers[b][i - old_centers]
+                    if bin_lower < 0:
+                        bin_lower = 0
+                    if marked[center] == self.UNMARKED:
+                        captured = self.set_maximum(q_data, marked, center, bin_lower, foothills, capture_index)
+                        if not captured:
+                            # decrement to lower value to see if it'll get big enough
+                            deferred_to_next.append(center)
+                        else:
+                            capture_index += 1
                 # this is the last one for this bin
-            self.remove_foothills(q_data, marked, b, bin_lower, centers, foothills)
-        del deferred_from_last[:]
-        del deferred_to_next[:]
+                self.remove_foothills(q_data, marked, b, bin_lower, centers, foothills)
+            del deferred_from_last[:]
+            del deferred_to_next[:]
         return marked
 
     def set_maximum(self, q_data, marked, center, bin_lower, foothills, capture_index):
@@ -230,11 +230,6 @@ class EnhancedWatershed(object):
         if big_enough:
             # remove lower values within region of influence
             foothills.append((center, as_glob))
-        
-        elif len(marked_so_far) <= self.min_size:
-            for m in marked_so_far:
-                marked[m] = self.UNMARKED  
-        
         elif will_be_considered_again:  # remove the check if you want to ignore regions smaller than max_size
             for m in marked_so_far:
                 marked[m] = self.UNMARKED
@@ -305,10 +300,7 @@ class EnhancedWatershed(object):
             pixels[i] = []
 
         data = (np.array(input_grid, dtype=np.int32) - self.min_thresh) // self.data_increment
-        if self.min_thresh == 0:
-            data[data <= 0] = -1
-        else:
-            data[data < 0] = -1 
+        data[data < 0] = -1
         data[data > self.max_bin] = self.max_bin
         good_points = np.where(data >= 0)
         for g in np.arange(good_points[0].shape[0]):

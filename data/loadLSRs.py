@@ -2,23 +2,22 @@ import wrf
 import pandas as pd 
 from datetime import datetime, timedelta
 import numpy as np 
-import sys
-sys.path.append('/home/monte.flora/wofs/data')
-from loadWRFGrid import WRFData
+from .loadWRFGrid import WRFData
 
 class loadLSR: 
     def __init__(self, date_dir, date, time, time_window = 15, forecast_length = 60,  
                     dtype = {'VALID': np.int64, 'LAT':np.float64, 'LON':np.float64, 'MAG':np.float64, 'TYPETEXT':object},
                     cols = ['VALID', 'LAT', 'LON', 'MAG', 'TYPETEXT'],
-                    fname = '/home/monte.flora/lsr_201704010000_201908010000.csv'):
+                    fname = '/home/monte.flora/LSRS/lsr_201701010000_202001010000.csv'):
         self.date = str(date)
         self.time = time
-        self.df = pd.read_csv( fname, usecols=cols, dtype=dtype, na_values = 'None' )
+        self.df = pd.read_csv( fname, usecols=cols, dtype=dtype, na_values = 'None')
         self.time_window = time_window
         self.forecast_length = forecast_length
         self._get_time_window( )     
         wrf_data = WRFData( date=date_dir, time='2000', time_indexs=[0] )
-        self.wrfin = wrf_data._generate_filename_list( mem_idx=1 )
+        self.wrfin = wrf_data._generate_filename_list( mem_idx=12 )
+        self.nx = self.wrfin[0].getncattr('WEST-EAST_PATCH_END_UNSTAG')
 
     def _to_datetime(self):
         '''
