@@ -18,7 +18,7 @@ class StormModeClassifier:
     mid-level rotation field using a single-threshold method. From these initial labels, 
     an initial storm mode is determined. After an iterative process, it further refines 
     the image segmentation and storm mode classification. The 7 possible storm 
-    mode include:
+    modes include:
     (1) Supercell 
     (2) Supercell Cluster 
     (3) QLCS 
@@ -27,38 +27,42 @@ class StormModeClassifier:
     (6)
     (7) Other 
     
-
     Authors: Corey Potvin (NOAA NSSL), Montgomery Flora (OU/CIWRO) 
 
     Attributes:
     ----------------
         dbz_thresh, float 
-            Threshold used for composite reflectivity object identification.
+            Threshold used for the initial composite reflectivity object identification.
         
         rot_thresh, float, default=None
-            Threshold used for mid-level rotation object identification
+            Threshold used for mid-level rotation object identification. 
         
         grid_spacing, float (default=3000)
             Grid spacing (in meters). Used to determine lengths and areas for storm 
             mode classification. 
     
         dbz_qc_params, list of 2-tuples (default=None)
-            QualityControler (see XXX) qc_params for the reflectivity objects. 
+            QualityControler (see monte_python.object_quality_control) 
+            qc_params for the reflectivity objects. 
        
-        dbz_qc_params2, list of 2-tuples (default=None)
-            QualityControler (see XXX) qc_params for the constituent reflectivity objects. 
+        dbz_qc_params_emb, list of 2-tuples (default=None)
+            QualityControler (see monte_python.object_quality_control) 
+            qc_params for the constituent/embedded reflectivity objects. 
             
         rot_qc_params, list of 2-tuples (default=None)
+            QualityControler (see monte_python.object_quality_control) 
+            qc_params for the mid-level rotation objects.
         
         verbose, boolean (default=False)
-            If True, various progress statements are printed.
+            If True, various progress statements are printed. 
+            Used for debugging. 
         
     """
     def __init__(self, 
                  dbz_thresh, 
                  rot_thresh=None, 
                  dbz_qc_params=None, 
-                 dbz_qc_params2=None,
+                 dbz_qc_params_emb=None,
                  rot_qc_params=None, 
                  grid_spacing=3000, 
                 verbose=False):
@@ -67,32 +71,33 @@ class StormModeClassifier:
         self.dbz_thresh = dbz_thresh
         self.rot_thresh = rot_thresh
         self.grid_spacing = grid_spacing
+        self.near_storm_diameter = 60*1000 # 60 km 
         
         # TODO: It might make sense to make to turn this into an argument 
         self.dbz_thresh_rng = np.arange(self.dbz_thresh+0, self.dbz_thresh+23.1, 1)
      
         if dbz_qc_params is None:
             self.dbz_qc_params = [
-                    ("min_area", 10),
-                    ("merge_thresh", 12),
-                    ("max_thresh", (15, 100)),
+                    ("min_area", 15),
+                    ("merge_thresh", 3),
+                    ("max_thresh", (45, 100)),
                 ]
         else:
             self.dbz_qc_params = dbz_qc_params
         
-        if dbz_qc_params2 is not None:
-            self.dbz_qc_params2 = [
+        if dbz_qc_params_emb is not None:
+            self.dbz_qc_params_emb = [
                 ("min_area", 10),
-                ("merge_thresh", 12),
-                ("max_thresh", (15, 100)),
+                ("merge_thresh", 0),
+                ("max_thresh", (45, 100)),
             ]
         else:
-            self.dbz_qc_params2 = dbz_qc_params2
+            self.dbz_qc_params_emb = dbz_qc_params_emb
         
         if rot_qc_params is not None:
             self.rot_qc_params = [
-                                ("merge_thresh", 12),
-                                ("min_area", 10),
+                                ("merge_thresh", 1),
+                                ("min_area", 5),
                             ]
         else:
             self.rot_qc_params = rot_qc_params
@@ -105,18 +110,18 @@ class StormModeClassifier:
         
         Parameters:
         ---------------------
-            dbz_vals, np.array of shape (NY, NX)
+            dbz_vals, array-like with shape (NY, NX)
                 Composite reflectivity field at single time to identify and classify.
             
-            rot_vals, np.array of shape (NY, NX) (default=None)
+            rot_vals, array-like with shape (NY, NX) (default=None)
                 Optional 30-minute time-maximum mid-level rotation field to aid in 
                 the storm mode classification. For NWP, we recommend mid-level UH and 
                 for radar data, azimuthal shear. Expected to be a 
-                time-composite field (e.g., max over the last 30 minutes).
+                time-composite field (e.g., max over the last 30 or 60 minutes).
             
             label_embedded, boolean (default=True)
                 If True, then embedded storms are identified and classified. 
-                Otherwise, ...
+                Otherwise, storm modes are only based on a 3-mode scheme. 
             
         Returns:
         ---------------------
@@ -175,7 +180,7 @@ class StormModeClassifier:
         )
         if qc_params is None:
             return input_data, labels, label_props
- 
+        
         labels, props = QualityControler().quality_control(
                     object_labels=labels,
                     object_properties=label_props,
@@ -183,15 +188,17 @@ class StormModeClassifier:
                     qc_params=qc_params,
                 )
         
-        # What it is going here? If the x,y centroid coords are too far away from 
-        # each other? 
         if is_dbz:
+            # This is meant to exclude storm objects too close the WoFS domain boundaries.
+            buffer = int(0.5*self.near_storm_diameter/self.grid_spacing)
             label_props_copy = copy(list(label_props))
             for region in label_props:
+                # Does NOT assume a square domain. Useful for rectangular grids. 
                 if (
-                    min(region.centroid[0], region.centroid[1]) < 42
-                     or max(region.centroid[0] + 42, region.centroid[1] + 42)
-                     > input_data.shape[0] - 2
+                    region.centroid[0] < buffer 
+                    or region.centroid[1] < buffer
+                    or (region.centroid[0] + buffer) > input_data.shape[0] - 2 
+                    or (region.centroid[1] + buffer) > input_data.shape[1] - 2
                      ):
                     label_props_copy.remove(region)
                     labels[labels == region.label] = 0
@@ -253,22 +260,26 @@ class StormModeClassifier:
             region_length = region.major_axis_length * self.grid_spacing
             region_area = region.area * pow(self.grid_spacing, 2)
 
-            ###print(f'area: {region.area}, Leng: {region_length}, ecc:{region.eccentricity}') 
-            
-            if region_area < 100e6 or (
-                region_area < 200e6 and region.eccentricity < 0.7 and region.solidity > 0.7
+            print(f'area: {region_area:.02e}, Leng: {region_length:.02f}, ecc:{region.eccentricity:.03f}') 
+
+            # If very small or smaller and near-circular and relatively solid, then it is likely
+            # an isolated cell. 
+            if round(region_area, 10) < 100e6 or (
+                round(region_area,10) < 200e6 and round(region.eccentricity, 10) < 0.7 \
+                and round(region.solidity,10) > 0.7
             ):
                 mode = "ROTATE" if region.label in labels_with_matched_rotation else "NONROT"
-            elif region.eccentricity > 0.97:
-                print('Entered QLCS/AMORPHOUS') 
-                mode = "QLCS" if region_length > 75e3 else "AMORPHOUS"
-            elif region.eccentricity > 0.9 and region_length > 150e3:
+            
+            elif round(region.eccentricity, 5) > 0.97:
+                print('Region has eccentricity > 0.97, entered QLCS/AMORPHOUS...') 
+                mode = "QLCS" if round(region_length,10) > 75e3 else "AMORPHOUS"
+            elif round(region.eccentricity,10) > 0.9 and round(region_length,10) > 150e3:
                 mode = "QLCS"
             elif (
-                region.eccentricity > 0.93
-                or region_area > 500e6
-                or region_length > 75e3
-                or region.solidity < 0.7
+                round(region.eccentricity,10) > 0.93
+                or round(region_area,10) > 500e6
+                or round(region_length,10) > 75e3
+                or round(region.solidity,10) < 0.7
             ):
                 mode = "AMORPHOUS"
             elif region.label in labels_with_matched_rotation:
@@ -280,6 +291,7 @@ class StormModeClassifier:
 
         return storm_modes, labels_with_matched_rotation
     
+    
     def match_to_rotation_tracks(self, dbz_regionprops, rot_regionprops):
         """Match reflectivity objects to rotation tracks; used for identifying supercellular modes"""
         labels_with_matched_rotation = []
@@ -288,6 +300,8 @@ class StormModeClassifier:
         all_rot_coords = [item for sublist in all_rot_coords for item in sublist]
         if len(all_rot_coords) > 0:
             for region in dbz_regionprops:
+                # Looking within a square region around the dBZ object for a 
+                # rotation object. 
                 ic, jc = int(region.centroid[0]), int(region.centroid[1])
                 rad = max(2, ceil(region.equivalent_diameter / 3.0))
                 imin, imax = ic - rad, ic + rad
@@ -337,7 +351,7 @@ class StormModeClassifier:
             label_inc = 100 * (itr - 1)
             
             # Identify new composite reflectivity objects with a higher minimum threshold 
-            temp_dbz_data = self._label_and_qc(dbz_vals, thresh=min_thresh, qc_params=self.dbz_qc_params2)
+            temp_dbz_data = self._label_and_qc(dbz_vals, thresh=min_thresh, qc_params=self.dbz_qc_params_emb)
         
             # Identify potentially embedded storm objects by increasing 
             # the dBZ threshold 
