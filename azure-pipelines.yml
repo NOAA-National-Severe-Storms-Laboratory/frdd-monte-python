@@ -1,0 +1,61 @@
+trigger:
+- master
+
+parameters:
+- name: package_version
+  displayName: Package Version
+  type: string
+  default: 1.1
+
+variables:
+  PACKAGE_VERSION: ${{ parameters.package_version }}.$(Build.BuildId)
+
+stages:
+- stage: Build
+  displayName: Build Package
+  jobs:
+      - job:
+        displayName: ubuntu-18.04
+        pool:
+          vmImage: 'ubuntu-18.04'
+        strategy:
+          matrix:
+            # Python36:
+            #   python.version: '3.6'
+            #   env_file: 'environment.yml'
+            Python38:
+              python.version: '3.8'              
+              env_file: 'environment_py38.yml'
+              
+        steps:
+        - bash: echo "##vso[task.prependpath]$CONDA/bin"
+          displayName: Add conda to PATH
+      
+        - script: conda env create --quiet --file $(env_file)
+          displayName: Create Anaconda environment
+      
+        - bash: |
+            python setup.py bdist_wheel
+          displayName: Build wheel
+
+        - script: 'pip install twine keyring artifacts-keyring'
+          displayName: Install publishing prerequisites
+  
+        - task: TwineAuthenticate@1
+          inputs:
+            artifactFeed: 'Warn-on-Forecast/monte_python'
+          displayName: Authenticate Twine
+
+        - script: |
+            python -m twine upload -r monte_python --config-file $(PYPIRC_PATH) --skip-existing dist/*.whl
+          displayName: Publish Package
+
+        - task: GithubRelease@1 
+          displayName: 'Create GitHub Release'
+          inputs:
+            gitHubConnection: WarnOnForecast-Github
+            repositoryName: WarnOnForecast/MontePython
+            isPreRelease: false
+            tagSource: userSpecifiedTag
+            assets: dist/*.whl
+            tag: $(PACKAGE_VERSION)-py$(python.version)
