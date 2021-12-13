@@ -32,10 +32,8 @@ setup(
         'Programming Language :: Python :: 3'
     ],
     install_requires = [
-        'numpy',
-        'scipy',
         'sklearn',
-        'scikit-image==0.18.2'
+        'scikit-image>=0.18.1'
     ],
     packages=['monte_python'],  # Required
     python_requires='>=3.8, <4',
