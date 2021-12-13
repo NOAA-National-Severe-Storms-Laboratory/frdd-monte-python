@@ -20,7 +20,7 @@ setup(
     description='Methods for Object-based and Neighborhood Threat Evaluation in Python', 
     long_description=long_description,
     long_description_content_type='text/markdown',  
-    url='https://github.com/WarnOnForecast/WoF_post', 
+    url='https://github.com/WarnOnForecast/MontePython', 
     author='NOAA National Severe Storms Laboratory', 
     classifiers=[  # Optional
         # How mature is this project? Common values are

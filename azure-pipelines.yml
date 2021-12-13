@@ -43,11 +43,11 @@ stages:
   
         - task: TwineAuthenticate@1
           inputs:
-            artifactFeed: 'Warn-on-Forecast/monte_python'
+            artifactFeed: 'Warn-on-Forecast/wofs-post'
           displayName: Authenticate Twine
 
         - script: |
-            python -m twine upload -r monte_python --config-file $(PYPIRC_PATH) --skip-existing dist/*.whl
+            python -m twine upload -r wofs-post --config-file $(PYPIRC_PATH) --skip-existing dist/*.whl
           displayName: Publish Package
 
         - task: GithubRelease@1 
