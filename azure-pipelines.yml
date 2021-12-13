@@ -31,7 +31,7 @@ stages:
         - bash: echo "##vso[task.prependpath]$CONDA/bin"
           displayName: Add conda to PATH
       
-        - script: conda env create --quiet --file $(env_file)
+        - script: conda env update --name base --file $(env_file)
           displayName: Create Anaconda environment
       
         - bash: |
