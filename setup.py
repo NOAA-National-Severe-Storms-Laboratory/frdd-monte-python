@@ -33,7 +33,8 @@ setup(
     ],
     install_requires = [
         'sklearn',
-        'scikit-image>=0.18.1'
+        'scikit-image>=0.18.1',
+        'xarray'
     ],
     packages=['monte_python'],  # Required
     python_requires='>=3.8, <4',
