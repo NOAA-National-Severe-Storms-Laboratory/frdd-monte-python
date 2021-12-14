@@ -224,10 +224,10 @@ class IterativeWatershed:
                                                              self.qc_params)[0]
         
         labels = self.relabel_embedded_object(potential_objects)
-        _max_label = np.max(combined_labels)
+        _max_label = np.max(labels)
         
         # Is there at least one object? 
-        if max_label > 0:
+        if _max_label > 0:
             label_props  = regionprops(labels.astype(int), input_data)
             labels = self.grow_objects_recursive(
                             previous_region_props=label_props,
