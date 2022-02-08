@@ -5,7 +5,5 @@ channels:
 dependencies:
   - python=3.8.10
   - pip=21.1
-  - scikit-image=0.18.2
-  - xarray=0.18.2  
-  - pip:
-    - sklearn
+  - scikit-image>=0.19
+  - xarray>=0.18 
