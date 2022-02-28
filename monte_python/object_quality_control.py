@@ -26,6 +26,7 @@ class QualityControler:
                          'match_to_lsr' : '_remove_objects_unmatched_to_lsrs'
                         }
     
+    #def __call__(self, input_data, object_labels, object_properties, qc_params):
     def quality_control(self, input_data, object_labels, object_properties, qc_params): 
         """
         Applies quality control to identified objects. 
@@ -80,7 +81,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : min_area, int, minimum area (in number of grid points) of an object
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=int) 
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8) 
         j=1
         for region in self.object_properties:
             if region.area >= self.qc_params['min_area']:
@@ -100,7 +101,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : max_length, int, maximum object length (in grid point distances) 
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=int)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
         j=1
         for region in self.object_properties:
             if round(region.major_axis_length, 2) >= self.qc_params['max_length']:
@@ -120,7 +121,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : max_thresh, float, intensity threshold for the 75th percentile
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=int)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
         j=1
         val, P = self.qc_params['max_thresh']
         for region in self.object_properties: 
@@ -143,7 +144,7 @@ class QualityControler:
             : min_time, int, minimum duration (in terms of number of time steps) 
             : time_argmax_idxs, When applying np.argmax over time dimensions of an array
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=int)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
         j=1
         time_argmax_idxs = self.qc_params['min_time'][1]
         for region in self.object_properties:    
@@ -201,7 +202,7 @@ class QualityControler:
         '''
         Removes objects unmatched to Local Storm Reports (LSRs).
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=int)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
         j=1
         for region in self.object_properties:
             kdbelled_points, labelled_datatree = spatial.cKDTree( region.coords )

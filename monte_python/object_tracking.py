@@ -44,14 +44,105 @@ class ObjectTracker:
         for t in np.arange(tracked_objects.shape[0]-1):
             current_objects = tracked_objects[t,:,:]
             future_objects = tracked_objects[t+1,:,:]
-            matched_labels_i, matched_labels_f  = self.match_objects(current_objects, future_objects,)
+            labels_before, labels_after  = self.match_objects(current_objects, future_objects,)
+            
+            areas_before, areas_after = self._get_area(current_objects), self._get_area(future_objects)
+            
+            # Check for mergers.
+            self.check_for_mergers(labels_before, labels_after, areas_before)
             
             # Re-label an object if matches (this is where the tracking is done) 
-            for label_i, label_f in zip(matched_labels_i, matched_labels_f):
+            for label_i, label_f in zip(labels_before, labels_after):
                 tracked_objects[t+1, future_objects == label_f] = label_i
 
+        # Do a final re-label so that np.max(relabel_objects) == number of tracked objects. 
         relabeled_objects = self.relabel(tracked_objects)
         return relabeled_objects
+    
+    def _get_area(self, arr):
+        """
+        Get the area of each object and return a dict.
+        """
+        return {label : np.count_nonzero(arr==label) for label in np.unique(arr)[1:]}
+        
+
+    def check_for_mergers(self, labels_before, labels_after, areas_before):
+        """
+        Mergers are cases where there are non-unique labels in the after step
+        (i.e., two or more labels become one). For longer tracks, 
+        the merged object label is inherited from the largest object in 
+        the merger. 
+    
+        E.g., 
+    
+        labels_before = [1,2,3,4,4] - > [2,3,4,4] 
+        labels_after  = [5,5,6,7,8] - > [5,6,7,8]
+    
+    
+        Parameters
+        --------------------
+    
+        Returns
+        --------------------
+        """
+        # Determine if there is a merged based on non-unqique labels. 
+        unique_labels_before, counts_before = np.unique(labels_before, return_counts=True)
+        if any(counts_after>1):
+            # Get the labels that non-unique. 
+            merged_labels = unique_labels_after[counts_after>1]
+
+            for label in merged_labels:
+                # This should be 2 or more labels (which are being merged together).
+                potential_label_for_merged_obj = [l for i, l in enumerate(labels_before) if labels_after[i] == label]
+                print(f'{potential_label_for_merged_obj=}')
+                # Sort the potential merged object labels by area. Keep the largest object and remove the 
+                # others. 
+                inds = np.argsort([areas_before[label] for label in potential_label_for_merged_obj])[::-1]
+                labels_sorted = np.array(potential_label_for_merged_obj)[inds]
+                for label in labels_sorted[1:]:
+                    index = labels_before.index(label)
+                    del labels_before[index]
+                    del labels_after[index]
+    
+        return labels_before, labels_after
+
+    def check_for_splits(labels_before, labels_after, areas_after):
+        """
+        Splits are cases where there are non-unique labels in the before step
+        (i.e., one labels becomes two or more). For longer tracks, 
+        of the split labels, the largest one inherits the before step label. 
+    
+    
+        labels_before = [1,2,3,4,4] - > [1,2,3,4] 
+        labels_after  = [5,5,6,7,8] - > [5,5,6,7]
+    
+    
+        Parameters
+        --------------------
+    
+        Returns
+        --------------------
+        """
+        unique_labels_after, counts_after = np.unique(labels_after, return_counts=True)
+        if any(counts_before>1): 
+            split_labels = unique_labels_before[counts_before>1]
+    
+            for label in split_labels: 
+                # This should be 2 or more labels (which are being merged together).
+                potential_label_for_split_obj = [l for i, l in enumerate(labels_after) if labels_before[i] == label]  
+                print(f'{potential_label_for_split_obj=}')
+                # Sort the potential split object labels by area. Keep the largest object and remove the 
+                # others. 
+                inds = np.argsort([areas_after[label] for label in potential_label_for_split_obj])[::-1]
+                labels_sorted = np.array(potential_label_for_split_obj)[inds]
+        
+                for label in labels_sorted[1:]:
+                    index = labels_after.index(label)
+                    del labels_before[index]
+                    del labels_after[index]
+    
+        return labels_before, labels_after 
+    
     
     def get_unique_labels(self, objects):
         """Ensure that initially, each object has a unique label"""
@@ -132,7 +223,7 @@ class ObjectTracker:
         """
         
         # Re-new object 
-        object_props_a, object_props_b = [regionprops(objects) for objects in [objects_a, objects_b]]
+        object_props_a, object_props_b = [regionprops(objects.astype(int)) for objects in [objects_a, objects_b]]
         
         # Find possible matched pairs 
         possible_matched_pairs = { }
@@ -160,29 +251,7 @@ class ObjectTracker:
                     
         return object_duration
 
-"""
-def calc_distance(self, pair_a, pair_b ): 
-        ''' Calculates the distance between pair_a and pair_b '''
-        return np.sqrt( (pair_a[0] - pair_b[0])**2 + (pair_a[1] - pair_b[1])**2 )
 
-        # Based on minimal distance
-        unique_labels_a = np.unique(objects_a)[1:]
-        unique_labels_b = np.unique(objects_b)[1:]
-
-        label_a_max_coords = {label: np.unravel_index( np.where( objects_a == label, original_data_a, 0.0 ).argmax( ), 
-                                                      np.where( objects_a == label, original_data_a, 0.0 ).shape ) 
-                              for label in unique_labels_a}
-        
-        label_b_max_coords = {label: np.unravel_index( np.where( objects_b == label, original_data_b, 0.0 ).argmax( ), 
-                                                      np.where( objects_b == label, original_data_b, 0.0 ).shape ) 
-                              for label in unique_labels_b}
-        
-        for label_a in unique_labels_a: 
-            for label_b in unique_labels_b: 
-                dist_btw_region_a_and_region_b = self.calc_distance( label_a_max_coords[label_a], label_b_max_coords[label_b] )
-                if dist_btw_region_a_and_region_b < self.dist_max: 
-                    possible_matched_pairs[(label_a, label_b)] = dist_btw_region_a_and_region_b
-"""
     
 
 
