@@ -140,6 +140,7 @@ class ObjectTracker:
         -duration : Number of timesteps a given object exists for. 
         -length: Total distance traversed per object. 
         """
+        # TODO: Add geopandas and then add the x-,y- tracks to the trackprops
         
         if not hasattr(self, 'tracks'):
             raise AttributeError('Must create the tracked data using .track_data()!') 
@@ -381,46 +382,9 @@ class ObjectTracker:
         Based on the x-centriod or y-centroid values for a track, 
         determine when the time index when the track starts and stops. 
         """
-        # Does the object only exist for one timestep? 
-        if np.sum(~np.isnan(data)) == 1:
-            ind = np.where(~np.isnan(data)==True)[0][0]
-            return ind, ind
-        
-        # If the track happens to persist for all 
-        # time steps (i.e., no nan values), then 
-        # the start and end indices are 0 and len(data)-1
-        elif not np.isnan(np.sum(data)):
-            return 0, len(data)-1 
-        
-        # Does the track start at the first time step?
-        elif not np.isnan(data[0]):
-            return 0, np.where(np.isnan(data))[0][0]-1
-        
-        # Does the track end at the last time step? 
-        elif not np.isnan(data[-1]):
-            return np.where(np.isnan(data))[0][-1]+1, len(data)-1
-        # Otherwise the tracks starts and stops sometime during 
-        # the time period. 
-        else:
-            data_copy = np.copy(data)
-            data_copy[np.isnan(data)] = 0
-            diff = np.absolute(np.diff(data_copy))
-
-            # This will return intersecting values in 
-            # value order rather than chronological order. 
-            # Need to check if the storms are moving west, 
-            # in case, the start and env vals are switched. 
-            vals = np.intersect1d(data, diff)
-        
-            is_decreasing = np.nanmean(np.diff(data)) < 0 
-            start_val, end_val = vals[::-1] if is_decreasing else vals
-
-            start_ind = np.where(data==start_val)[0]
-            end_ind = np.where(data==end_val)[0]
-    
-            return start_ind[0], end_ind[0]
-    
-    
+        time_indices = [i for i, v in enumerate(data) if not np.isnan([v])]
+        return time_indices[0], time_indices[-1]
+ 
     def mend_broken_tracks(self, tracks, mend_dist=3):
         """
         Mend broken tracks by project track ends forward 
