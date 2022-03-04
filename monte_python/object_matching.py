@@ -5,15 +5,16 @@ import math
 import collections
 from datetime import datetime
 import itertools
+import warnings 
 
 class ObjectMatcher:
     """
-    ObjectMatching uses a total interest score (Davis et al. 2006) based on centroid, minimum, and time 
-    (optionally) displacement to match two sets of objects. Additionally, the object matching can be 
-    one-to-one --single object in one set matched to a single object in the second set-- or 
-    non-one-to-one --multiple objects can be matched to a single object.
+    ObjectMatcher uses a total interest score based on centroid, minimum, and time 
+    (optionally) displacement to match two sets of objects [1]_. Matching between
+    sets can be "one-to-one" (an object in one set is matched to a single object in the second set 
+    or "non-one-to-one" where multiple objects in one set can be matched to a single object in another set.
     
-    Attributes
+    Parameters
     -----------
         cent_dist_max : integer, default=None  
             maximum distance criterion for centroid displacement (in grid-point distance).
@@ -34,7 +35,15 @@ class ObjectMatcher:
             - if False, allows for region_b (e.g., forecasts) to be matched more than once
      
     Example usage provided in a jupyter notebook @ https://github.com/monte-flora/MontePython/
-   
+    
+    References
+    ----------
+    .. [1] Skinner, P. S., Wheatley, D. M., Knopfmeier, K. H., Reinhart, A. E., Choate, J. J., 
+           Jones, T. A., Creager, G. J., Dowell, D. C., Alexander, C. R., Ladwig, T. T., Wicker, L. J., 
+           Heinselman, P. L., Minnis, P., & Palikonda, R. (2018). Object-Based Verification of a Prototype 
+           Warn-on-Forecast System, Weather and Forecasting, 33(5), 1225-1250. Retrieved Mar 4, 2022, 
+           from https://journals.ametsoc.org/view/journals/wefo/33/5/waf-d-18-0020_1.xml
+
     """
     def __init__( self, min_dist_max, cent_dist_max=None, time_max=0, score_thresh = 0.2, one_to_one = False):
         self.min_dist_max = min_dist_max
@@ -44,10 +53,18 @@ class ObjectMatcher:
         self.one_to_one = one_to_one
         self.only_min_dist = True if cent_dist_max is None else False
 
-
+    
     def match_objects(self, object_set_a, object_set_b, times_a=None, times_b=None):
+        warnings.warn("""ObjectMatcher.match_objects is deprecated. 
+                         In the future use, ObjectMatcher.match. 
+                      """, DeprecationWarning) 
+        
+        return self.match(object_set_a, object_set_b, times_a=None, times_b=None
+        
+    def match(self, object_set_a, object_set_b, times_a=None, times_b=None):
         """ 
         Match two set of objects valid at a single or multiple times.
+        
         Parameters
         -----------
         
@@ -81,8 +98,7 @@ class ObjectMatcher:
             cent_dist_of_matched_objects : list of 2-tuples of floats
                 The (dy, dx) components of the centroid displacement between
                 matched pairs. Useful for diagnosing potential biases in 
-                storm motion if matching observed and forecasted objects. 
-                
+                storm motion if matching observed and forecasted objects.  
         """
         # The following code is expecting a list of 2D arrays (for the different times). However, you can provide 
         # just a single 2D array if time is not being consider for object matching
@@ -106,13 +122,14 @@ class ObjectMatcher:
         matched_object_set_b_labels  = [ ]         
         cent_dist_of_matched_objects = [ ]
     
-        possible_matched_pairs, cent_disp_of_possible_matched_pairs = self._find_possible_matches( regionprops_set_a, 
-                                                                                                 regionprops_set_b, 
-                                                                                                 all_times_a, 
-                                                                                                 all_times_b ) 
+        (possible_matched_pairs, 
+         cent_disp_of_possible_matched_pairs) = self._find_possible_matches( regionprops_set_a, 
+                                                                             regionprops_set_b, 
+                                                                             all_times_a, 
+                                                                             all_times_b ) 
 
-    
         sorted_possible_matched_pairs  = sorted(possible_matched_pairs, key=possible_matched_pairs.get, reverse=True)
+                          
         for label_a, label_b in sorted_possible_matched_pairs:
             if self.one_to_one:
                 # Check if the components of the matched pair are already matched to a better pairing.
@@ -272,6 +289,8 @@ class ObjectMatcher:
         
         return norm_time_disp
 
+"""
+Deprecated March 4, 2022.
 def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
     '''
      Match forecast objects to local storm reports.
@@ -297,3 +316,4 @@ def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
             else:
                 matched_fcst_objects[region.label] = 0.0
         return matched_fcst_objects 
+"""

@@ -13,7 +13,6 @@ import copy
 import warnings
 warnings.simplefilter("ignore", UserWarning)
 
-
 from .object_matching import ObjectMatcher
 from .object_quality_control import QualityControler
 from .EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
@@ -23,7 +22,7 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     """ 
     Identifies and labels objects in input_data using a simple single threshold method, a
     a modified version of the enhanced watershed algorithm, and an iterative watershed 
-    method [1]_ [2]_ [3]_ .
+    method [1]_ [2]_ [3]_ [4]_.
 
     .. note :: 
         The enhanced watershed algoritm is a powerful tool for image segementation, but 
@@ -97,15 +96,21 @@ def label(input_data, params, method='watershed', return_object_properties=True)
             Warn-on-Forecast System, Weather and Forecasting, 34(6), 1721-1739. Retrieved Sep 27, 2021, 
             from https://journals.ametsoc.org/view/journals/wefo/34/6/waf-d-19-0094_1.xml 
             
+    .. [4] Flora, M. L., Potvin, C. K., Skinner, P. S., Handler, S., & McGovern, A. (2021). 
+           Using Machine Learning to Generate Storm-Scale Probabilistic Guidance of Severe Weather Hazards in 
+           the Warn-on-Forecast System, Monthly Weather Review, 149(5), 1535-1557. Retrieved Mar 4, 2022, 
+           from https://journals.ametsoc.org/view/journals/mwre/149/5/MWR-D-20-0194.1.xml
+    
+    
     Examples
     ---------
     
-    >>> import MontePython
+    >>> import monte_python
     >>> input_data = 
     >>> params = {'min_thresh' : 10, 
     ...           'max_thresh' : 
     ...          }
-    >>> labels, label_props = MontePython.label_regions(input_data, 
+    >>> labels, label_props = monte_python.label(input_data, 
     ...                           method = "watershed",
     ...                              params = params, 
     ...                              return_object_properties=True,

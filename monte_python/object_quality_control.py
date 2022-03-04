@@ -26,7 +26,10 @@ class QualityControler:
                          'match_to_lsr' : '_remove_objects_unmatched_to_lsrs'
                         }
     
-    #def __call__(self, input_data, object_labels, object_properties, qc_params):
+    def __call__(self, input_data, object_labels, object_properties, qc_params):
+        return self.quality_control(input_data, object_labels, object_properties, qc_params)
+        
+        
     def quality_control(self, input_data, object_labels, object_properties, qc_params): 
         """
         Applies quality control to identified objects. 
