@@ -59,7 +59,7 @@ class ObjectMatcher:
                          In the future use, ObjectMatcher.match. 
                       """, DeprecationWarning) 
         
-        return self.match(object_set_a, object_set_b, times_a=None, times_b=None
+        return self.match(object_set_a, object_set_b, times_a=None, times_b=None)
         
     def match(self, object_set_a, object_set_b, times_a=None, times_b=None):
         """ 
