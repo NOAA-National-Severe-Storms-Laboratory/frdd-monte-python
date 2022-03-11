@@ -7,7 +7,6 @@ from skimage.filters.rank import modal
 from sklearn.neighbors import KDTree
 from scipy.ndimage import generic_filter
 from skimage.morphology import disk
-import xarray as xr 
 import random
 import copy 
 import warnings
@@ -20,13 +19,13 @@ from .EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
 
 def label(input_data, params, method='watershed', return_object_properties=True):
     """ 
-    Identifies and labels objects in input_data using a simple single threshold method, a
-    a modified version of the enhanced watershed algorithm, and an iterative watershed 
+    Performs image segmentation using either (1) a single threshold method,
+    (2) a modified version of the enhanced watershed algorithm, or (3) an iterative watershed 
     method [1]_ [2]_ [3]_ [4]_.
 
     .. note :: 
-        The enhanced watershed algoritm is a powerful tool for image segementation, but 
-        it can require significant parameter tuning. We recommend exploring the single
+        The enhanced and iterative watershed algoritms are a powerful tools for image segementation, but 
+        they require significant parameter tuning. We recommend exploring the single
         threshold method first. 
     
     Parameters
@@ -37,13 +36,18 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     
     method : ``"single_threshold"`` or ``"watershed"`` or ``"iterative_watershed"``
         The method used to segment and label the input data. 
-        The single threshold method binarizes the input data 
-        where input_data > threshold == 1 else 0 and then connected
-        region are labelled. The watershed method uses multiple thresholds
-        and grows objects based on an area threshold. The iterative watershed method
-        is for identifying objects across different spatial scales. It uses the watershed
-        method, but usually with progressively higher minimal thresholds and lower area thresholds
-        to segment regions across multiple spatial scales. 
+        
+        - ``"single_threshold"``, the single threshold method binarizes
+                                  the input data where input data > threshold == 1 else 0
+                                  and then connected regions are labelled. 
+        - ``"watershed"``, uses multiple thresholds and grows objects 
+                           until they reach an a given area threshold. 
+        - ``"iterative_watershed"``, uses the watershed iteratively where 
+                                     higher minimal thresholds and lower area thresholds
+                                     are used for later iterations. This allows objects to
+                                     be broken up. However, all non-zero regions must be assigned 
+                                     to a region, thus it respects the original spatial extent
+                                     of a region. 
         
     params : dict  
         The parameter(s) required for the respective labelling method used.
@@ -107,10 +111,15 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     
     >>> import monte_python
     >>> input_data = 
-    >>> params = {'min_thresh' : 10, 
-    ...           'max_thresh' : 
-    ...          }
-    >>> labels, label_props = monte_python.label(input_data, 
+    >>> params = {'min_thresh':25,
+    ...           'max_thresh':80,
+    ...           'data_increment':20,
+    ...           'area_threshold': 150,
+    ...           'dist_btw_objects': 50} 
+    ...
+    >>> centers = [(40, 45), (40, 58), (65, 90), (90, 55), (40,20)]
+    >>> storms,_,_ = monte_python.create_fake_storms(centers) 
+    >>> labels, label_props = monte_python.label(storms, 
     ...                           method = "watershed",
     ...                              params = params, 
     ...                              return_object_properties=True,
@@ -127,6 +136,13 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     elif method == "watershed":
         ider = EnhancedWatershed(**params)
     else:
+        if 'bdry_thresh' not in params.keys():
+            raise KeyError("""
+                           bdry_thresh is not in params. Must provide a boundary threshold for the single
+                           threshold method
+                           """
+                          )
+        
         ider = SingleThresholdIdentifier(params['bdry_thresh'])
     
     labels = ider.label(input_data)
@@ -161,6 +177,7 @@ class SingleThresholdIdentifier:
     """
     def __init__(self, thresh):
         self.thresh = thresh
+    
     
     def label(self, input_data):
         # Binarize the input array based on the boundary threshold 

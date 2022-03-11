@@ -5,6 +5,9 @@ from .object_matching import ObjectMatcher
 from .object_tracking import ObjectTracker 
 from .storm_mode_classification import StormModeClassifier
 
+# the plotting 
+from ._plot.plotter import (create_fake_storms, plot_fake_storms, plot_storm_labels)
+
 import os
 __key__ = 'PACKAGE_VERSION'
 __version__= os.environ[__key__] if __key__ in os.environ else '1.1.0'
