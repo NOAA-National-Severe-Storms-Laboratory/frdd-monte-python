@@ -6,7 +6,13 @@ from .object_tracking import ObjectTracker
 from .storm_mode_classification import StormModeClassifier
 
 # the plotting 
-from ._plot.plotter import (create_fake_storms, plot_fake_storms, plot_storm_labels)
+from ._plot.plotter import (create_fake_storms,
+                            plot_fake_storms, 
+                            plot_storm_labels, 
+                            get_centroid_coords,
+                            matching_path,
+                            plot_displacement
+                           )
 
 import os
 __key__ = 'PACKAGE_VERSION'

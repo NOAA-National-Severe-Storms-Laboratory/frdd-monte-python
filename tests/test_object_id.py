@@ -13,7 +13,6 @@ sys.path.append(path)
 
 import monte_python
 
-
 class TestGetData(unittest.TestCase):
     def setUp(self):
         """ Create some fake storms for testing"""
