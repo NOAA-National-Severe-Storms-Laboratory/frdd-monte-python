@@ -32,9 +32,9 @@ setup(
         'Programming Language :: Python :: 3'
     ],
     install_requires = [
-        'sklearn',
+        'scikit-learn',
         'scikit-image>=0.18.1',
-        'xarray'
+        'matplotlib<=3.4.3', 
     ],
     packages=['monte_python'],  # Required
     python_requires='>=3.8, <4',
