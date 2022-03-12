@@ -61,11 +61,12 @@ class TestObjectID(TestGetData):
         areas = [region.area for region in object_props]
         
         # Test that the areas are right. 
-        np.testing.assert_array_equal(true_areas, areas) 
+        np.testing.assert_allclose(true_areas, areas, atol=5)  
         
         # Test that the labels are right. 
         np.testing.assert_array_equal(np.unique(storm_labels), np.array([0,1,2,3,4]))
 
+        
     def test_missing_watershed_params(self):
         """ Check that watershed does proceed if parameters are missing """
         pass
@@ -94,7 +95,7 @@ class TestObjectID(TestGetData):
         areas = [region.area for region in object_props]
         
         # Test that the areas are right. 
-        np.testing.assert_array_equal(true_areas, areas) 
+        np.testing.assert_allclose(true_areas, areas, atol=5) 
         
         # Test that the labels are right. 
         np.testing.assert_array_equal(np.unique(storm_labels), np.array([0,1,2,3,4,5]))
@@ -129,7 +130,7 @@ class TestObjectID(TestGetData):
         areas = [region.area for region in object_props]
         
         # Test that the areas are right. 
-        np.testing.assert_array_equal(true_areas, areas) 
+        np.testing.assert_allclose(true_areas, areas, atol=5) 
         
         # Test that the labels are right. 
         np.testing.assert_array_equal(np.unique(storm_labels), np.array([0,1,2,3,4,5]))
