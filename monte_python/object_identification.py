@@ -24,9 +24,9 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     method [1]_ [2]_ [3]_ [4]_.
 
     .. note :: 
-        The enhanced and iterative watershed algoritms are a powerful tools for image segementation, but 
-        they require significant parameter tuning. We recommend exploring the single
-        threshold method first. 
+       The enhanced and iterative watershed algoritms are a powerful tools for image segementation 
+       ,but they require significant parameter tuning. We recommend exploring the single
+       threshold method first. 
     
     Parameters
     ----------
@@ -369,13 +369,13 @@ class IterativeWatershed:
         labelled region with new points. BUT remove the point
         so it is not further considered. 
 
-        Args:
+        Parameters
         ------------------
         regionprops, skimage object
         original_data, 2D numpy array of the data to be labelled
         labelled_data, 2D numpy array of labelled regions in original_data
 
-        Returns:
+        Returns
         ---------------
         labelled_array, 2D numpy array of labelled regions 
         """
@@ -408,13 +408,13 @@ class IterativeWatershed:
         labelled region with new points. BUT remove the point
         so it is not further considered. 
 
-        Args:
+        Parameters
         ------------------
         regionprops, skimage object
         original_data, 2D numpy array of the data to be labelled
         labelled_data, 2D numpy array of labelled regions in original_data
 
-        Returns:
+        Returns
         ---------------
         labelled_array, 2D numpy array of labelled regions 
         """

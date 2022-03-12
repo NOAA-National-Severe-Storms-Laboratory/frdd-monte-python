@@ -282,10 +282,12 @@ class ObjectTracker:
 
     def match(self, data_a, data_b):
         """ Match two set of data valid at a single or multiple times.
-        Args:
+        Parameters
+        -------------
             object_set_a, 2D array or list of 2D arrays, object labels at a single or multiple times
             object_set_b, 2D array or list of 2D arrays, object labels at a single or multiple times
-        Returns:
+        Returns
+        -------------
             Lists of matched labels in set a, matched labels in set b,
             and tuples of y- and x- components of centroid displacement of matched pairs
         """
@@ -327,10 +329,13 @@ class ObjectTracker:
     
     def find_possible_matches(self, data_a, data_b): 
         """ Finds matches based on amount of intersection between data at time = t and time = t+1.
-        Args: 
+        Parameters 
+        -----------
             regionprops_set_a, skimage.measure.regionprops for object_set_a
             regionprops_set_b, skimage.measure.regionprops for object_set_b
-        Returns: 
+            
+        Returns 
+        ----------
             Dictionary of tuples of possible matched object pairs associated with their total interest score 
             Dictionary of y- and x-component of centroid displacement of possible matched object pairs             
         """

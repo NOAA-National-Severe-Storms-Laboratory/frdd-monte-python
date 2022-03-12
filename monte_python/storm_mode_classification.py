@@ -29,7 +29,7 @@ class StormModeClassifier:
     
     Authors: Corey Potvin (NOAA NSSL), Montgomery Flora (OU/CIWRO) 
 
-    Attributes:
+    Parameters
     ----------------
         dbz_thresh, float 
             Threshold used for the initial composite reflectivity object identification.
@@ -108,7 +108,7 @@ class StormModeClassifier:
         7-mode scheme. Optionally, it can include mid-level rotation to aid 
         in the classification. 
         
-        Parameters:
+        Parameters
         ---------------------
             dbz_vals, array-like with shape (NY, NX)
                 Composite reflectivity field at single time to identify and classify.
@@ -123,7 +123,7 @@ class StormModeClassifier:
                 If True, then embedded storms are identified and classified. 
                 Otherwise, storm modes are only based on a 3-mode scheme. 
             
-        Returns:
+        Returns
         ---------------------
             results : dict 
                 Keys, 
@@ -239,7 +239,7 @@ class StormModeClassifier:
                     
                 Example : rot_data = (uh, rot_labels, rot_props)
                    
-        Returns:
+        Returns
         -------------------
             storm_modes : list of strings, of len(dbz_props) 
                 Storm types for each object in the dbz_props, (i.e., one for each reflectivity object)
@@ -324,7 +324,7 @@ class StormModeClassifier:
         Description: Identify reflectivity objects with a progressively
                      higher threshold. Helps to identify embedded storms. 
     
-        Parameters:
+        Parameters
         -------------------
             data_dict : dict 
                 keys include 
@@ -333,7 +333,7 @@ class StormModeClassifier:
                    'dbz_props' 
                    'rot_labels'    
                    'rot_props'          
-        Returns:
+        Returns
         -------------------
         """
         dbz_vals, init_dbz_labels, init_dbz_props = data_dict['dbz_vals'], data_dict['dbz_labels'], data_dict['dbz_props']
@@ -433,10 +433,10 @@ class StormModeClassifier:
         contains the parent type of each child object
         new_storm_depths is later used to process objects in order of their generation. 
         
-        Parameters:
+        Parameters
         -----------------------
         
-        Returns:
+        Returns
         -----------------------
         
         """
