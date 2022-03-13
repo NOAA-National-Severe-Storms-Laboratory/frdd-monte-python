@@ -36,7 +36,7 @@ setup(
         'scikit-image>=0.18.1',
         'matplotlib<=3.4.3', 
     ],
-    packages=['monte_python'],  # Required
+    packages=['monte_python', 'monte_python._plot'],  # Required
     python_requires='>=3.8, <4',
     package_dir={'monte_python': 'monte_python'},
     project_urls={  # Optional
