@@ -1,8 +1,42 @@
 import matplotlib.pyplot as plt 
+import matplotlib
 import numpy as np 
 from scipy.stats import multivariate_normal
+import matplotlib.colors as colors
+
 from matplotlib.colors import ListedColormap
 cmap = ListedColormap(["white", "red", "blue", "green", "purple", 'gray'])
+
+
+### NWS Reflectivity Colors (courtesy MetPy library):
+c5 =  (0.0,                 0.9254901960784314, 0.9254901960784314)
+c10 = (0.00392156862745098, 0.6274509803921569, 0.9647058823529412)
+c15 = (0.0,                 0.0,                0.9647058823529412)
+c20 = (0.0,                 1.0,                0.0)
+c25 = (0.0,                 0.7843137254901961, 0.0)
+c30 = (0.0,                 0.5647058823529412, 0.0)
+c35 = (1.0,                 1.0,                0.0)
+c40 = (0.9058823529411765,  0.7529411764705882, 0.0)
+c45 = (1.0,                 0.5647058823529412, 0.0)
+c50 = (1.0,                 0.0,                0.0)
+c55 = (0.8392156862745098,  0.0,                0.0)
+c60 = (0.7529411764705882,  0.0,                0.0)
+c65 = (1.0,                 0.0,                1.0)
+c70 = (0.6,                 0.3333333333333333, 0.788235294117647)
+c75 = (0.0,                 0.0,                0.0) 
+
+nws_dz_cmap = matplotlib.colors.ListedColormap([c20, c25, c30, c35, c40, c45, 
+                 c50, c55, c60, c65, c70])
+dz_levels_nws = np.arange(20.0,80.,5.)
+
+def convert_modes(modes):
+    new_modes = np.zeros(modes.shape)
+    nan_inds = modes<0 
+    new_modes[modes>=0] = modes[modes>=0]
+    new_modes[modes>=0]+= 1
+    new_modes[nan_inds] = 0
+    return new_modes
+
 
 
 # Create fake storm data
@@ -44,7 +78,7 @@ def plot_fake_storms(x,y,data, ax=None, colorbar=True, alpha=1.0):
     if ax is None:
         f, ax = plt.subplots(figsize=(5, 4), dpi=150, facecolor='w', edgecolor='k')  
         
-    c = ax.pcolormesh(x, y, data, cmap='jet', vmin=20, vmax=75, alpha=alpha)
+    c = ax.pcolormesh(x, y, data, cmap=nws_dz_cmap, vmin=20, vmax=75, alpha=alpha)
     ax.tick_params(axis='both', bottom=False, left=False, labelbottom=False, labelleft=False)
     if colorbar:
         plt.colorbar(c, label='Fake Reflectivity', ax=ax)
@@ -55,22 +89,31 @@ def plot_fake_storms(x,y,data, ax=None, colorbar=True, alpha=1.0):
     return ax 
 
 
-def label_centroid(x, y, ax, object_props):
+def label_centroid(x, y, ax, object_props, storm_modes=None, converter=None):
     """Place object label on object's centroid"""
     for region in object_props:
         x_cent,y_cent = region.centroid
         x_cent=int(x_cent)
         y_cent=int(y_cent)
         xx, yy = x[x_cent,y_cent], y[x_cent,y_cent]
-        fontsize = 6.5 if region.label >= 10 else 8
+        
+        if storm_modes is None:
+            fontsize = 6.5 if region.label >= 10 else 8
+            txt = region.label
+        else:
+            fontsize=4
+            coords = region.coords
+            ind = int(np.max(storm_modes[coords[:,0], coords[:,1]]))
+            txt = converter[ind] 
+          
         ax.text(xx,yy,
-                    region.label,
+                    txt,
                     fontsize=fontsize,
                     ha='center',
                     va='center',
                     color = 'k'
                     )    
-    
+
 def plot_storm_labels(x, y, labels, label_props, ax=None, alpha=1.0):
     """ Plot Storm Labels """
     if ax is None:
@@ -84,6 +127,31 @@ def plot_storm_labels(x, y, labels, label_props, ax=None, alpha=1.0):
     ax.grid(alpha=0.5, ls='dashed')
     
     label_centroid(x, y, ax, label_props) 
+    
+    return ax    
+
+
+def plot_storm_modes(x, y, modes, label_props, converter, ax=None, alpha=1.0):
+    """ Plot Storm Labels """
+    if ax is None:
+        f, ax = plt.subplots(figsize=(5, 4), dpi=150, facecolor='w', edgecolor='k')
+    
+    modes = np.ma.masked_where(modes==0, modes)
+    norm = colors.BoundaryNorm(0.5+np.arange(7 + 1), plt.cm.Set1.N)
+    #ax.contourf(x,y,rot_vals, cmap='jet', levels=np.arange(25, 175, 12.5))
+    c = ax.pcolormesh(x, y, modes, cmap='Set1', alpha=alpha, norm=norm)
+    
+    
+    cbar = plt.colorbar(c, ticks=range(8), label='Storm Mode')
+    cbar.ax.set_yticklabels(['ORDINARY', 'SUPERCELL', 'QLCS', 
+                                 'SUP_CLUST', 'QLCS_ORD', 'QLCS_MESO', 'OTHER' ], fontsize=5)
+    
+    ax.tick_params(axis='both', bottom=False, left=False, labelbottom=False, labelleft=False)
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    ax.grid(alpha=0.5, ls='dashed')
+    
+    label_centroid(x, y, ax, label_props, modes, converter) 
     
     return ax    
 
