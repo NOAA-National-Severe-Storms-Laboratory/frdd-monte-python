@@ -18,8 +18,8 @@ import monte_python
 class TestGetData(unittest.TestCase):
     def setUp(self):
         """ Get a real-case """
-        file_path = 'tests/test_storm_mode.nc'
-        ds = xr.open_dataset(file_path)
+        TESTDATA_FILENAME = os.path.join(os.path.dirname(__file__), 'test_storm_mode.nc')
+        ds = xr.open_dataset(TESTDATA_FILENAME)
         
         self.dbz_vals = ds['DBZ'].values
         self.rot_vals = ds['ROT'].values
