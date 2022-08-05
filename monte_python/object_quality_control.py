@@ -4,7 +4,7 @@ import skimage.measure
 from math import sqrt
 from collections import OrderedDict
 from skimage.measure import regionprops 
-from numba import jit, typeof
+from numba import jit
 from numba_kdtree import KDTree
 #import warnings
 #warnings.simplefilter("ignore", UserWarning)

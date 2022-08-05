@@ -2,7 +2,7 @@ import copy
 import xarray as xr
 
 import numpy as np
-from numba import jit, float32, int32
+from numba import jit
 from math import atan2, ceil, pi, log, sqrt, pow, fabs, cos, sin
 from skimage.measure import regionprops, label
 from .object_identification import label
@@ -37,7 +37,6 @@ def get_constituent_storms(
 
     label_inc = 100 * (itr - 1)
     
-    t1 = time()
     temp_dbzcomp_labels, temp_dbzcomp_props = label(
         input_data=dbzcomp_values,
         method="single_threshold",
@@ -46,7 +45,6 @@ def get_constituent_storms(
     
     if len(temp_dbzcomp_props) > 0:
         # Apply quality control
-        t1 = time()
         temp_dbzcomp_labels, temp_dbzcomp_props = QualityControler().quality_control(
             object_labels=temp_dbzcomp_labels,
             object_properties=temp_dbzcomp_props,
@@ -55,7 +53,6 @@ def get_constituent_storms(
         )
 
     # Identify candidate embedded storm objects
-    t1 = time()
     temp_storm_types, labels_with_matched_rotation = get_storm_types(
         model,
         temp_dbzcomp_labels,
