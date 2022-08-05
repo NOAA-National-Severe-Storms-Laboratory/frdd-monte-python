@@ -176,7 +176,7 @@ class StormModeClassifier:
         
         dbz_labels, dbz_props = self._label_and_qc(dbz_vals, self._dbz_thresh, self._dbz_qc_params)
         rot_labels, rot_props = self._label_and_qc(rot_vals, self._rot_thresh, self._rot_qc_params)   
-        
+    
         storm_types, labels_with_matched_rotation = get_storm_types(
                         None,
                         dbz_labels,
@@ -187,10 +187,11 @@ class StormModeClassifier:
                         rot_vals,
                         ANALYSIS_DX= self._ANALYSIS_DX
                     )
-                    
+    
         min_thres_vals = np.arange(
                             self._dbz_thresh + 0, self._dbz_thresh + 23.1, 1
                         )
+        
         for itr, min_thres in enumerate(min_thres_vals):
             (
              storm_types,
@@ -215,13 +216,12 @@ class StormModeClassifier:
 
         for n in range(len(dbz_props)):
             dbz_props[n].label = n + 1
-
+    
         storm_modes, merged_labels = self._embedding_to_2d_array( dbz_vals.shape,
                                                                  dbz_props, 
                                                                 storm_types, 
                                                                 storm_depths, 
                                                                 storm_embs)
-
         return storm_modes, merged_labels, dbz_props    
         
     def get_storm_labels(self, storm_emb, storm_type):
