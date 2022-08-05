@@ -2,10 +2,16 @@ import copy
 import xarray as xr
 
 import numpy as np
+from numba import jit
 from math import atan2, ceil, pi, log, sqrt, pow, fabs, cos, sin
 from skimage.measure import regionprops, label
 from .object_identification import label
-from .object_quality_control import QualityControler
+from .object_quality_control import QualityControler, whereeq
+from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
+import warnings
+
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
 #ANALYSIS_DX = 3000
 
@@ -25,21 +31,19 @@ def get_constituent_storms(
     ANALYSIS_DX, 
     debug=False,
 ):
-
     new_storm_types = storm_types.copy()
     new_dbzcomp_labels = dbzcomp_labels.copy()
     new_dbzcomp_props = dbzcomp_props.copy()
 
     label_inc = 100 * (itr - 1)
-
+    
     temp_dbzcomp_labels, temp_dbzcomp_props = label(
         input_data=dbzcomp_values,
         method="single_threshold",
         params={"bdry_thresh": min_thresh},
     )
-
+    
     if len(temp_dbzcomp_props) > 0:
-
         # Apply quality control
         temp_dbzcomp_labels, temp_dbzcomp_props = QualityControler().quality_control(
             object_labels=temp_dbzcomp_labels,
@@ -49,7 +53,6 @@ def get_constituent_storms(
         )
 
     # Identify candidate embedded storm objects
-
     temp_storm_types, labels_with_matched_rotation = get_storm_types(
         model,
         temp_dbzcomp_labels,
@@ -61,83 +64,35 @@ def get_constituent_storms(
         ANALYSIS_DX, 
         itr == max_itr,
     )
-
-    for n, storm_type in enumerate(storm_types):
-
-        # Cycle through candidate storm objects
-
-        prelim_new_storm_types = []
-        prelim_new_dbzcomp_props = []
-        prelim_temp_labels = []
-
-        parent_coords = np.asarray(dbzcomp_props[n].coords)
-
-        for nn, temp_dbzcomp_prop in enumerate(temp_dbzcomp_props):
-
-            if temp_storm_types[nn] in ["ROTATE", "NONROT"]:
-                child_coords = np.asarray(temp_dbzcomp_prop.coords)
-                if check_overlap(child_coords, parent_coords):
-                    # If candidate storm object overlaps an existing storm object, retain and characterize it for further testing
-                    prelim_new_storm_types.append(temp_storm_types[nn])
-                    temp_dbzcomp_props[
-                        nn
-                    ].label += label_inc  # ensure new object has unique label so as not to combine with preexisting object
-                    prelim_new_dbzcomp_props.append(temp_dbzcomp_props[nn])
-                    prelim_temp_labels.append(temp_dbzcomp_props[nn].label)
-
-        # if len(prelim_new_dbzcomp_props) > 0:
-
-        # cycle through each candidate new storm object
-
-        for nnn, new_storm_type in enumerate(prelim_new_storm_types):
-
-            # if storm object is a CELL, determine if this object is likely just a smaller version of an existing object (versus a constituent of a larger storm)
-
-            if new_storm_type in ["ROTATE", "NONROT"]:
-
-                similar_storm_found = False
-
-                prelim_props = prelim_new_dbzcomp_props[nnn]
-                prelim_i = prelim_props.centroid[0]
-                prelim_j = prelim_props.centroid[1]
-
-                for nnnn, exist_props in enumerate(new_dbzcomp_props):
-
-                    if new_storm_types[nnnn] in ["ROTATE", "NONROT"]:  ### NEW
-
-                        exist_i = exist_props.centroid[0]
-                        exist_j = exist_props.centroid[1]
-                        dist = sqrt(
-                            pow(prelim_i - exist_i, 2) + pow(prelim_j - exist_j, 2)
+    
+    dbz_coords = [prop.coords for prop in dbzcomp_props]
+    if (len(temp_storm_types)):
+        new_storm_types,new_dbzcomp_labels,n_append = iterate_storm_types(
+                        storm_types, new_storm_types,new_dbzcomp_labels,
+                        dbz_coords, 
+                        [prop.centroid for prop in dbzcomp_props],
+                        [prop.equivalent_diameter for prop in dbzcomp_props], 
+                        [prop.area for prop in dbzcomp_props],
+                        temp_storm_types, 
+                        [prop.coords for prop in temp_dbzcomp_props], 
+                        [prop.label for prop in temp_dbzcomp_props],
+                        temp_dbzcomp_labels,
+                        [prop.centroid for prop in temp_dbzcomp_props], 
+                        [prop.equivalent_diameter for prop in temp_dbzcomp_props],
+                        [prop.area for prop in temp_dbzcomp_props],
+                        label_inc
                         )
-
-                        if (
-                            dist < max(2, 0.15 * exist_props.equivalent_diameter)
-                            and prelim_props.area <= 1.0 * exist_props.area
-                        ):
-
-                            similar_storm_found = True
-                            break
-
-                # if candidate object is not merely a smaller version of an existing object, retain it
-
-                if not similar_storm_found:
-                    new_storm_types.append(prelim_new_storm_types[nnn])
-                    new_dbzcomp_props.append(prelim_new_dbzcomp_props[nnn])
-
-                    # insert new object into label image
-                    new_dbzcomp_labels[
-                        temp_dbzcomp_labels == (prelim_temp_labels[nnn] - label_inc)
-                    ] = prelim_temp_labels[nnn]
-
-    # if itr!=max_itr and (len(new_dbzcomp_props) != len(set(new_dbzcomp_labels.flatten().tolist()))-1 or len(new_dbzcomp_props) != len(new_storm_types)):
-    #  print ('CCCCCCCCCCCCC', len(new_dbzcomp_props), len(set(new_dbzcomp_labels.flatten().tolist()))-1, len(new_storm_types))
+                        
+        for n in n_append:
+            new_dbzcomp_props.append(temp_dbzcomp_props[n])
 
     # After last iteration, do final QC
 
     if itr == max_itr:
 
-        # Create "family tree" of objects; new_storm_depths contains the "generation" of each object; new_storm_parent_labels contains the parent label for each child object; new_storm_embs contains the parent type of each child object
+        # Create "family tree" of objects; new_storm_depths contains the "generation" of each object; 
+        # new_storm_parent_labels contains the parent label for each child object; new_storm_embs 
+        # contains the parent type of each child object
         # new_storm_depths is later used to process objects in order of their generation
 
         new_storm_parent_labels, new_storm_embs, new_storm_depths = object_hierarchy(
@@ -329,7 +284,7 @@ def get_constituent_storms(
         new_storm_parent_labels = new_storm_parent_labels2.copy()
         new_storm_depths = new_storm_depths2.copy()
 
-    if itr == max_itr:
+    if itr == max_itr and len(new_storm_depths)>0:
 
         # If object embedded within QLCS_embedded object, discard the former
         # If object embedded within AMORPHOUS or CELL is the only object embedded therein, discard it. If parent object is AMORPHOUS, reclassify it as discarded child object type.
@@ -556,7 +511,90 @@ def get_constituent_storms(
         return new_storm_types, new_storm_embs, new_dbzcomp_props, None
 
     return new_storm_types, new_storm_embs, new_dbzcomp_labels, new_dbzcomp_props
+  
+  
+@jit(fastmath=True) 
+def iterate_storm_types(storm_types, new_storm_types, new_dbzcomp_labels, 
+                        dbz_coords,dbz_centroid,dbz_equiv_diam,dbz_area,
+                        temp_storm_types, temp_coords,temp_prop_label,temp_dbzcomp_labels,
+                        temp_centroid,temp_equiv_diam, temp_area, label_inc): 
+    
+    new_inds = []   
+    for n, storm_type in enumerate(storm_types):
+        
+        # Cycle through candidate storm objects
 
+        prelim_new_storm_types = []
+        prelim_new_dbzcomp_centroid = []
+        prelim_new_dbzcomp_equiv_diam= []
+        prelim_new_dbzcomp_area = []
+        prelim_temp_labels = []
+        temp_inds = []
+
+        parent_coords = dbz_coords[n]
+        
+        for nn, prop in enumerate(temp_prop_label):
+            child_coords = temp_coords[nn]
+            if temp_storm_types[nn] in ["ROTATE", "NONROT"]:
+                
+                if check_overlap(child_coords, parent_coords):
+                    # If candidate storm object overlaps an existing storm object,
+                    # retain and characterize it for further testing
+                    prelim_new_storm_types.append(temp_storm_types[nn])
+                    temp_prop_label[
+                        nn
+                    ] += label_inc  # ensure new object has unique label so as not to combine with preexisting object
+                    prelim_new_dbzcomp_centroid.append(temp_centroid[nn])
+                    prelim_new_dbzcomp_area.append(temp_area[nn])
+                    prelim_new_dbzcomp_equiv_diam.append(temp_equiv_diam[nn])
+                    prelim_temp_labels.append(temp_prop_label[nn])
+                    temp_inds.append(nn)
+
+        # cycle through each candidate new storm object
+        for nnn, new_storm_type in enumerate(prelim_new_storm_types):
+
+            # if storm object is a CELL, determine if this object is likely just a smaller 
+            # version of an existing object (versus a constituent of a larger storm)
+
+            if new_storm_type in ["ROTATE", "NONROT"]:
+
+                similar_storm_found = False
+
+                prelim_i = prelim_new_dbzcomp_centroid[nnn][0]
+                prelim_j = prelim_new_dbzcomp_centroid[nnn][1]
+
+                for nnnn, exist_props in enumerate(dbz_centroid):
+
+                    if new_storm_types[nnnn] in ["ROTATE", "NONROT"]:  ### NEW
+
+                        exist_i = exist_props[0]
+                        exist_j = exist_props[1]
+                        dist = sqrt(
+                            pow(prelim_i - exist_i, 2) + pow(prelim_j - exist_j, 2)
+                        )
+
+                        if (
+                            dist < max(2, 0.15 * dbz_equiv_diam[nnn])
+                            and prelim_new_dbzcomp_area[nnn] <= 1.0 * dbz_area[nnnn]
+                        ):
+
+                            similar_storm_found = True
+                            break
+
+                # if candidate object is not merely a smaller version of an existing object, retain it
+
+                if not similar_storm_found:
+                    new_storm_types.append(prelim_new_storm_types[nnn])
+                    new_inds.append(temp_inds[nnn])
+                    dbz_centroid.append(prelim_new_dbzcomp_centroid[nnn])
+                    dbz_area.append(prelim_new_dbzcomp_area[nnn])
+                    dbz_equiv_diam.append(prelim_new_dbzcomp_equiv_diam[nnn])
+                    new_dbzcomp_labels = whereeq(new_dbzcomp_labels.astype(np.int64),temp_dbzcomp_labels.astype(np.int64),
+                    np.int64(prelim_temp_labels[nnn] - label_inc),np.int64(prelim_temp_labels[nnn])).astype(np.int8)
+                    
+    return new_storm_types,new_dbzcomp_labels,new_inds
+
+ 
 def get_storm_labels(storm_emb, storm_type):
 
     convert_labels = {
@@ -705,7 +743,7 @@ def get_storm_types(
 
     return storm_types, labels_with_matched_rotation
 
-
+@jit
 def check_overlap(coords1, coords2):
 
     for item1 in coords1:
