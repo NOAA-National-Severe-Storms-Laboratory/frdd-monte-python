@@ -139,7 +139,7 @@ class StormModeClassifier:
 
         return labels_qced, props_qced
     
-    def classify(self, dbz_vals, rot_vals):
+    def classify(self, dbz_vals, rot_vals, classify_embedded=True, return_rot_labels=False):
         """
         Identify and classify composite reflectivity objects using the 
         7-mode scheme from Potvin et al. 
@@ -188,17 +188,22 @@ class StormModeClassifier:
                         ANALYSIS_DX= self._ANALYSIS_DX
                     )
     
+        print(f'{storm_types=}')
+        print(f'{labels_with_matched_rotation=}')
+              
+   
         min_thres_vals = np.arange(
                             self._dbz_thresh + 0, self._dbz_thresh + 23.1, 1
                         )
         
-        for itr, min_thres in enumerate(min_thres_vals):
-            (
-             storm_types,
-             storm_embs,
-             dbz_props,
-             storm_depths,
-                ) = get_constituent_storms(
+        if classify_embedded:
+            for itr, min_thres in enumerate(min_thres_vals):
+                (
+                 storm_types,
+                 storm_embs,
+                 dbz_props,
+                 storm_depths,
+                    ) = get_constituent_storms(
                                 None,
                                 min_thres,
                                 self._emb_qc_params,
@@ -213,16 +218,23 @@ class StormModeClassifier:
                                 len(min_thres_vals),
                                 self._ANALYSIS_DX,
                             )
-
+        else:
+            storm_depths = [0]*len(storm_types)
+            storm_embs = ['NONEMB']*len(storm_types)
+                
         for n in range(len(dbz_props)):
             dbz_props[n].label = n + 1
     
+       
         storm_modes, merged_labels = self._embedding_to_2d_array( dbz_vals.shape,
                                                                  dbz_props, 
                                                                 storm_types, 
                                                                 storm_depths, 
                                                                 storm_embs)
-        return storm_modes, merged_labels, dbz_props    
+        if return_rot_labels:
+            return storm_modes, merged_labels, dbz_props, rot_labels
+        else:    
+            return storm_modes, merged_labels, dbz_props    
         
     def get_storm_labels(self, storm_emb, storm_type):
         convert_labels = {'ROTATE': 'SUPERCELL', 

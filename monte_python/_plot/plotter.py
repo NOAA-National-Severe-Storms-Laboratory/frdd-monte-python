@@ -91,6 +91,9 @@ def plot_fake_storms(x,y,data, ax=None, colorbar=True, alpha=1.0):
 
 def label_centroid(x, y, ax, object_props, storm_modes=None, converter=None):
     """Place object label on object's centroid"""
+    if storm_modes is not None:
+        print('Remember that the storm mode label is based on the minimal integer label in a reigon!')
+    
     for region in object_props:
         x_cent,y_cent = region.centroid
         x_cent=int(x_cent)
@@ -103,7 +106,7 @@ def label_centroid(x, y, ax, object_props, storm_modes=None, converter=None):
         else:
             fontsize=4
             coords = region.coords
-            ind = int(np.max(storm_modes[coords[:,0], coords[:,1]]))
+            ind = int(np.min(storm_modes[coords[:,0], coords[:,1]]))
             txt = converter[ind] 
           
         ax.text(xx,yy,
@@ -131,7 +134,7 @@ def plot_storm_labels(x, y, labels, label_props, ax=None, alpha=1.0):
     return ax    
 
 
-def plot_storm_modes(x, y, modes, label_props, converter, ax=None, alpha=1.0):
+def plot_storm_modes(x, y, modes, label_props=None, converter=None, ax=None, alpha=1.0):
     """ Plot Storm Labels """
     if ax is None:
         f, ax = plt.subplots(figsize=(5, 4), dpi=150, facecolor='w', edgecolor='k')
@@ -140,7 +143,6 @@ def plot_storm_modes(x, y, modes, label_props, converter, ax=None, alpha=1.0):
     norm = colors.BoundaryNorm(0.5+np.arange(7 + 1), plt.cm.Set1.N)
     #ax.contourf(x,y,rot_vals, cmap='jet', levels=np.arange(25, 175, 12.5))
     c = ax.pcolormesh(x, y, modes, cmap='Set1', alpha=alpha, norm=norm)
-    
     
     cbar = plt.colorbar(c, ticks=range(8), label='Storm Mode')
     cbar.ax.set_yticklabels(['ORDINARY', 'SUPERCELL', 'QLCS', 
@@ -151,7 +153,8 @@ def plot_storm_modes(x, y, modes, label_props, converter, ax=None, alpha=1.0):
     ax.set_ylabel('Latitude')
     ax.grid(alpha=0.5, ls='dashed')
     
-    label_centroid(x, y, ax, label_props, modes, converter) 
+    if label_props is not None:
+        label_centroid(x, y, ax, label_props, modes, converter) 
     
     return ax    
 
