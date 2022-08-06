@@ -134,7 +134,8 @@ class QualityControler:
         qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
         j=1
         for region in self.object_properties:
-             if round(region.major_axis_length, 2) >= self.qc_params['max_length']:
+            # If the object is shorter than the length, keep it.
+             if round(region.major_axis_length, 2) <= self.qc_params['max_length']:
                  qc_object_labels[self.object_labels == region.label] = j
                  j+=1
         qc_object_properties = regionprops( qc_object_labels, self.input_data,  )
