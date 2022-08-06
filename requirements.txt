@@ -7,3 +7,4 @@ matplotlib<=3.4.3
 xarray >= 0.21.1
 numba
 numba_kdtree
+netCDF4
