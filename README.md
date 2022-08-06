@@ -3,9 +3,28 @@
 # MontePython
 
 
-Methods for Object-based and Neighborhood Threat Evaluation in Python (MontePython) is a Python module for meteorological-based image segementation, matching, and tracking. This package was originally built for [NOAA's Warn-on-Forecast System](https://www.nssl.noaa.gov/projects/wof/)(WoFS). 
+Methods for Object-based and Neighborhood Threat Evaluation in Python (MontePython) is a Python module for meteorological-based image segementation, matching, quality control and tracking. This package was originally built for [NOAA's Warn-on-Forecast System](https://www.nssl.noaa.gov/projects/wof/) (WoFS), but is applicable to any gridded data. MontePython also includes a 7-scheme storm identification and classification scheme from [Potvin et al. (2022)](https://journals.ametsoc.org/view/journals/atot/39/7/JTECH-D-21-0141.1.xml?rskey=dHTUIB&result=5).
 
 
+## Object Identification 
+
+There are three different object identification (ID) methods in MontePython: single threhsold, enhanced watershed, and iterative watershed. To see examples of how to use these different methods, see the [object ID tutorial notebook](https://github.com/WarnOnForecast/MontePython/blob/master/tutorial_notebooks/object_id.ipynb)
+
+## Object Quality Control 
+
+Object identification methods are imperfect and as such a post-processing step is often required to improve the identification. MontePython's ObjectQualityControler has multiple options for qc'ing the output of object identification. To see examples of differnt quality control methods, see the [object quality control tutorial notebook](https://github.com/WarnOnForecast/MontePython/blob/master/tutorial_notebooks/object_quality_control.ipynb)
+
+
+## Object Matching 
+
+MontePython can perform matching between two sets of objects (e.g., forecasts and observations). The default matching is based on a total interest score in [Skinner et al. (2018)](https://journals.ametsoc.org/view/journals/wefo/33/5/waf-d-18-0020_1.xml), which includes minimum displacement, centroid displacement, and time displacement. The user can also provide a custom scoring function. Additionally, the code can also handle non-one-to-one matching. This is applicable to situations where we might want to associate multiple observed objects with a single forecast object. To see examples of how to perform object matching, see the [object matching tutorial notebook](https://github.com/WarnOnForecast/MontePython/blob/master/tutorial_notebooks/object_matching.ipynb)
+
+## Object Tracking
+
+Once identified, objects over time can be tracked using MontePython's ObjectTracker. The algorithm is designed for high temporal resolution data such that matches in time can be largely determined by the amount of overlap. The tracking algorithm can handle both splits and mergers. To see examples of how to perform object tracking, see the [object tracking tutorial notebook](https://github.com/WarnOnForecast/MontePython/blob/master/tutorial_notebooks/object_tracking.ipynb)
+
+## Storm Identification and Classification 
+[Potvin et al. (2022)](https://journals.ametsoc.org/view/journals/atot/39/7/JTECH-D-21-0141.1.xml?rskey=dHTUIB&result=5) developed a storm identification and classification method, which is applicable to both convection-allowing model output and observed radar. To see examples of how to use this method , see the [storm mode tutorial notebook](https://github.com/WarnOnForecast/MontePython/blob/master/tutorial_notebooks/storm_mode_classification.ipynb)
 
 ### Requirements
 - numpy 
@@ -13,62 +32,5 @@ Methods for Object-based and Neighborhood Threat Evaluation in Python (MontePyth
 - scikit-image
 - scikit-learn 
 - pandas 
+- numba 
 
-## Object Identification 
-
-### Single Threshold 
-```python 
-import monte_python 
-
-# Create some fake storms
-centers = [(40, 45), (40, 58), (65, 90), (90, 55), (40,20)]
-storms,x,y = monte_python.create_fake_storms(center) 
-
-storm_labels, object_props = monte_python.label( input_data = storms,
-                                   method ='single_threshold', 
-                                   return_object_properties=True, 
-                                   params = {'bdry_thresh':40} )                                    
-```
-
-### Watershed 
-```python
-storm_labels, object_props = monte_python.label(  input_data = storms, 
-                       method ='watershed', 
-                       return_object_properties=True, 
-                       params = {'min_thresh':25,
-                                 'max_thresh':80,
-                                 'data_increment':20,
-                                 'area_threshold': 150,
-                                 'dist_btw_objects': 50} 
-                       )
-```
-
-### Iterative watershed
-```python
-# For this example, we are using two iterations of the iterative watershed method. 
-# However, if the expected objects existed across more spatial scales, we could introduce more
-# iterations. 
-param_set = [ {'min_thresh':10,
-                                 'max_thresh':80,
-                                 'data_increment':20,
-                                 'area_threshold': 200,
-                                 'dist_btw_objects': 50} , 
-            
-              {'min_thresh':25,
-                                 'max_thresh':80,
-                                 'data_increment':20,
-                                 'area_threshold': 50,
-                                 'dist_btw_objects': 10} 
-            ]
-
-params = {'params': param_set }
-
-# This is not an important set for the watershed, but 
-# simply something to make this fake example work. 
-input_data = np.where(storms > 10, storms, 0)
-storm_labels, object_props = monte_python.label(  input_data = input_data, 
-                       method ='iterative_watershed', 
-                       return_object_properties=True, 
-                       params = params,  
-                       )
-```
