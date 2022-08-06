@@ -7,12 +7,18 @@
 #  Technique for Identifying Storm Cells in Geospatial Images. J. Atmos. Oceanic Technol., 26, 523-537.
 # https://journals.ametsoc.org/doi/full/10.1175/2008JTECHA1153.1
 """
-@author: David John Gagne (djgagne@ou.edu)
+@author: David John Gagne (djgagne@ou.edu) and Montgomery Flora (monte.flora@noaa.gov)
 """
 
 import numpy as np
 from scipy.ndimage import find_objects
 from collections import OrderedDict
+#import numba
+#from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
+#import warnings
+
+#warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+#warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
 
 class EnhancedWatershed(object):
@@ -27,6 +33,7 @@ class EnhancedWatershed(object):
         max_thresh (int): values greater than maxThresh are treated as the maximum threshold
         area_threshold (int): clusters smaller than this threshold are ignored.
     """
+    
 
     def __init__(self, min_thresh, max_thresh, area_threshold, dist_btw_objects, data_increment=1):
         self.min_thresh = min_thresh
@@ -80,6 +87,7 @@ class EnhancedWatershed(object):
                 j += 1
         return out_grid
 
+    #@numba.jit(fastmath=True, forceobj=True) 
     def find_local_maxima(self, pixels, q_data):
         """
         Finds the local maxima in the inputGrid and perform region growing to identify objects.
@@ -134,6 +142,7 @@ class EnhancedWatershed(object):
                             marked[m] = self.UNMARKED
         return centers
 
+    #@numba.jit(fastmath=True, forceobj=True)
     def grow_centers(self, centers, q_data):
         """
         Once
@@ -179,7 +188,8 @@ class EnhancedWatershed(object):
         del deferred_from_last[:]
         del deferred_to_next[:]
         return marked
-
+    
+    #@numba.jit(fastmath=True, forceobj=True)
     def set_maximum(self, q_data, marked, center, bin_lower, foothills, capture_index):
         """
         Grow a region at a certain bin level and check if the region has reached the maximum size.
@@ -241,6 +251,7 @@ class EnhancedWatershed(object):
             del marked_so_far[:]
         return big_enough or (not will_be_considered_again)
 
+    #@numba.jit(fastmath=True, forceobj=True)
     def remove_foothills(self, q_data, marked, bin_num, bin_lower, centers, foothills):
         """
         Mark points determined to be foothills as globbed, so that they are not included in

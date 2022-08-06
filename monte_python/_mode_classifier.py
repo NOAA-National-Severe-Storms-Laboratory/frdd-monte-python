@@ -670,7 +670,7 @@ def get_storm_types(
 
     # Author: Corey Potvin
     """
-    print(f'{ANALYSIS_DX=}')
+    ##print(f'{ANALYSIS_DX=}')
     
     storm_types = []
     labels_with_matched_rotation = []

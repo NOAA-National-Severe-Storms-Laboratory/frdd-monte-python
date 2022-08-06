@@ -188,8 +188,8 @@ class StormModeClassifier:
                         ANALYSIS_DX= self._ANALYSIS_DX
                     )
     
-        print(f'{storm_types=}')
-        print(f'{labels_with_matched_rotation=}')
+        #print(f'{storm_types=}')
+        #print(f'{labels_with_matched_rotation=}')
               
    
         min_thres_vals = np.arange(
