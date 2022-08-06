@@ -45,36 +45,23 @@ class ObjectMatcher:
            from https://journals.ametsoc.org/view/journals/wefo/33/5/waf-d-18-0020_1.xml
 
     """
-    def __init__( self, min_dist_max=0, cent_dist_max=None, time_max=0, 
-                 score_thresh = 0.2, one_to_one = False, 
-                match_to_reports=False):
-        
+    def __init__( self, min_dist_max, cent_dist_max=None, time_max=0, score_thresh = 0.2, one_to_one = False):
         self.min_dist_max = min_dist_max
         self.cent_dist_max = cent_dist_max
         self.time_max = 1 if time_max == 0 else time_max 
         self.score_thresh = score_thresh
         self.one_to_one = one_to_one
         self.only_min_dist = True if cent_dist_max is None else False
-        self.max_prob_dist = 0.9
-        
-        if match_to_reports:
-            if self.one_to_one:
-                print('When matching to reports, one_to_one must be False, changing it to False')
-                self.one_to_one=False
-            self.matching_criteria = self.report_matching_criteria
-        else:
-            self.matching_criteria = self._total_interest_score 
-        
 
-    def match_objects(self, object_set_a, object_set_b, times_a=None, times_b=None, input_a=None, input_b=None, ):
+    
+    def match_objects(self, object_set_a, object_set_b, times_a=None, times_b=None):
         warnings.warn("""ObjectMatcher.match_objects is deprecated. 
                          In the future use, ObjectMatcher.match. 
                       """, DeprecationWarning) 
         
-        return self.match(object_set_a, object_set_b, times_a=None, times_b=None, input_a=None, input_b=None, )
+        return self.match(object_set_a, object_set_b, times_a=None, times_b=None)
         
-    def match(self, object_set_a, object_set_b, times_a=None, times_b=None, 
-              input_a=None, input_b=None, ):
+    def match(self, object_set_a, object_set_b, times_a=None, times_b=None):
         """ 
         Match two set of objects valid at a single or multiple times.
         
@@ -82,19 +69,12 @@ class ObjectMatcher:
         -----------
         
             object_set_a : {numpy.array or array-like, or list of array-like}
-                Labeled data from a single or multiple times. If one_to_one is
-                False, then these are the labels that can be matched more than 
-                once. For example, we may want to match a single forecast object to 
-                multiple observed objects. 
+                Labeled data from a single or multiple times
                 
             object_set_b : {numpy.array or array-like, or list of array-like}
-                Labeled data from a single or multiple times. These objects 
-                can only be matched once. E.g., an observation cannot
-                be matched to more than more forecast objects.
-            
-            input_[a,b] : {numpy.array or array-like, or list of array-like}
-                The input data the objects in set a and b were derived from. Used to compute 
-                the intensity values (min,max, or mean), which can be used for object matching. 
+                Labeled data from a single or multiple times. If one_to_one is
+                True, then these are the labels that can be matched more than 
+                once.
                 
             time_a : list of strings, default is None 
                 valid times (Format: '%Y%m%d %H%M') for object_set_a. 
@@ -108,7 +88,6 @@ class ObjectMatcher:
         --------
             matched_object_set_a_labels : list of integers
                 Labels in object_set_a that are matched. 
-                Will be non-unique if one_to_one is False. 
                  
             matched_object_set_b_labels : list of integers 
                 Labels in object_set_b that are matched.
@@ -123,23 +102,15 @@ class ObjectMatcher:
         """
         # The following code is expecting a list of 2D arrays (for the different times). However, you can provide 
         # just a single 2D array if time is not being consider for object matching
-        if input_a is None:
-            input_a = object_set_a
-        if input_b is None:
-            input_b = object_set_b
-        
         if len(np.shape(object_set_a)) != 3:
             object_set_a = [object_set_a]
-            
-            input_a = [input_a]
             times_a = ['20000101 0100']
             times_b = times_a
         if len(np.shape(object_set_b)) != 3:
             object_set_b = [object_set_b]
-            input_b = [input_b]
         
-        regionprops_set_a = [ self._calc_object_props( set_a, in_a ) for set_a, in_a in zip(object_set_a,input_a) ] 
-        regionprops_set_b = [ self._calc_object_props( set_b, in_b ) for set_b, in_b in zip(object_set_b,input_b) ]
+        regionprops_set_a = [ self._calc_object_props( set_a ) for set_a in object_set_a ]
+        regionprops_set_b = [ self._calc_object_props( set_b ) for set_b in object_set_b ]
         
         all_times_a = []; all_times_b = []
         for n, set_a in enumerate(object_set_a):
@@ -180,7 +151,7 @@ class ObjectMatcher:
         
         return matched_object_set_a_labels, matched_object_set_b_labels, cent_dist_of_matched_objects
     
-    def _calc_object_props(self, label_image, intensity_image):
+    def _calc_object_props(self, label_image):
         """ Calculate region properties for objects.
         Parameters
         ------------
@@ -191,13 +162,7 @@ class ObjectMatcher:
         ---------
             skimage.measure.regionprops of the label_image
         """
-        if not isinstance(intensity_image, np.ndarray):
-            try:
-                intensity_image = intensity_image.values 
-            except:
-                raise ValueError('intensity_image is not a numpy.array! Tried to convert using .values, but it did not work!')
-        
-        return regionprops(label_image.astype(int), intensity_image)     
+        return regionprops( label_image.astype(int), label_image.astype(int) )     
 
     def _find_possible_matches(self, regionprops_set_a, regionprops_set_b, times_a, times_b): 
         """ Finds matches that exceed the minimum total interest score criterion.
@@ -231,108 +196,28 @@ class ObjectMatcher:
             for region_b, time_b in zip(regionprops_set_b, times_b):
                 region_b_label = (region_b.label, time_b)
                 dist_btw_region_a_and_region_b, _ = kdtree_a.query( region_b.coords )
-                tis, dx, dy  = self.matching_criteria( region_a, 
-                                                           region_b, 
+                tis, dx, dy  = self._total_interest_score( region_a.centroid, 
+                                                           region_b.centroid, 
                                                            time_a, 
                                                            time_b, 
                                                            dist_btw_region_a_and_region_b )
-                ###print(f'{tis=}')
                 if round( tis, 4 ) > round( self.score_thresh, 4 ):
                     possible_matched_pairs[(region_a_label, region_b_label)] = round(tis, 4 )
                     cent_disp_of_possible_matched_pairs[(region_a_label, region_b_label)] = (dy, dx)         
 
         return possible_matched_pairs, cent_disp_of_possible_matched_pairs
 
-    def report_matching_criteria(self, region_a, region_b, time_a, time_b, dist_array):
-        """ Calculates a customized total interest score for matching storm reports 
-            to ensemble storm tracks. 
-        
-        Parameters
-        --------------
-        region_a, region_b : skimage.measure.regionprops objects
-            The regionprops objects contains properties of the object 
-            
-        time_a, time_b : string (Format: '%Y-%m-%d %H%M')
-            valid times for region_a and region_b, respectively. 
-            
-        dist_array : np.array
-            Distance between each points in region_a and region_b.
-            E.g., np.min(dist_array) indicates the shortest 
-            distance between region_a and region_b. 
-  
-        Returns
-        ---------------
-        tis: float
-            the Total Interest Score 
-        """
-        region_a_cent = region_a.centroid 
-        region_b_cent = region_b.centroid
-        
-        min_dist = np.min(dist_array)
-        dx = region_b_cent[1] - region_a_cent[1]
-        dy = region_b_cent[0] - region_a_cent[0]
-        cent_dist = math.hypot(dx, dy)
-    
-        # The minimum distance score
-        min_dist_score = self.get_min_disp(dist_array)
-
-        # Compute maximum intensity score. Compute for region_b, which should be 
-        max_score = self.max_probability_score(region_a)
-
-        # Weighing minimum distance more than centroid distance. 
-        score = 0.5*(max_score + min_dist_score) 
-        
-        ##print(f'{max_score=}', f'{min_dist_score}')
-        return score, dx, dy
-        
-        """
-        # If the minimum distance is zero, then match it
-        if np.round(min_dist,3) < 1:
-            # Adding the "1000" to ensure that in the sorting this object is given
-            # the highest priority for matching. 
-            return self.score_thresh+1000, dx, dy
-        
-        # Otherwise, compute the total interest score with the maximum displacement as an additional component.
-        elif np.round(cent_dist,5) <= np.round(self.cent_dist_max,5):
-            # The minimum distance score
-            min_dist_score = self.get_min_disp(dist_array)
-            # Centroid distance score
-            cent_dist_score, dx, dy = self.get_cent_disp(region_a_cent, region_b_cent)
-            # Compute maximum intensity score. Compute for region_b, which should be 
-            max_score = self.max_intensity_score(region_a)
-
-            # Weighing minimum distance more than centroid distance. 
-            score = 0.5*(max_score + min_dist_score) #(0.1*cent_dist_score + 0.9*min_dist_score)
-            return score, dx, dy
-        else:
-            # Minus 0.1 so that these object cannot be consider a match. 
-            return self.score_thresh-0.1, dx, dy
-        """
-    
-    def _total_interest_score(self, region_a, region_b, time_a, time_b, dist_array, option=True):
+    def _total_interest_score( self, region_a_cent, region_b_cent, time_a, time_b, dist_array, option=True ):
         """ Calculates the Total Interest Score (based on Skinner et al. 2018).
-        
-        Parameters
-        --------------
-        region_a, region_b : skimage.measure.regionprops objects
-            The regionprops objects contains properties of the object 
-            
-        time_a, time_b : string (Format: '%Y-%m-%d %H%M')
-            valid times for region_a and region_b, respectively. 
-            
-        dist_array : np.array
-            Distance between each points in region_a and region_b.
-            E.g., np.min(dist_array) indicates the shortest 
-            distance between region_a and region_b. 
-  
-        Returns
-        ---------------
-        tis: float
-            the Total Interest Score 
+            Parameters:
+                region_a_cent, centroid of region_a
+                region_b_cent, centroid of region_b
+                time_a, string, time valid for region_a (Format: '%Y-%m-%d %H%M')
+                time_b, string, time valid for region_b (Format: '%Y-%m-%d %H%M')
+                dist_array, distances between points in region_a and region_b
+            Returns:
+                Total Interest Score (float)
         """
-        region_a_cent = region_a.centroid 
-        region_b_cent = region_b.centroid
-        
         norm_min_dist = self.get_min_disp(dist_array)
         
         if self.only_min_dist:
@@ -345,26 +230,6 @@ class ObjectMatcher:
 
             return tis, dx, dy if option else tis 
 
-    def max_probability_score(self, region):
-        """Compute the maximum probability displacement (used for matching reports to ensemble storm track objects)"""
-        # Maximum probability value in an ensemble storm track.
-        max_val = region.intensity_max
-        
-        # How far away from the true max intensity 
-        prob_dist = (1.0-max_val)
-    
-        # Compute the total interest score. 
-        score = (self.max_prob_dist - prob_dist) / self.max_prob_dist
-        
-        # If the score is negative, then set the tis = 0.
-        # This ensures that low probability ensemble storm tracks 
-        # can still be matched to a report if the minimum distance 
-        # is low enough. 
-        if score < 0:
-            score = 0 
-        
-        return score
-        
     def get_min_disp(self, dist_array):
         """Compute the minimal displacement between two objects"""
         if self.min_dist_max == 0:
@@ -424,7 +289,8 @@ class ObjectMatcher:
         
         return norm_time_disp
 
-    
+"""
+Deprecated March 4, 2022.
 def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
     '''
      Match forecast objects to local storm reports.
@@ -450,3 +316,4 @@ def match_to_lsrs( object_properties, lsr_points, dist_to_lsr ):
             else:
                 matched_fcst_objects[region.label] = 0.0
         return matched_fcst_objects 
+"""
