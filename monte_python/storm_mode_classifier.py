@@ -217,12 +217,12 @@ class StormModeClassifier:
         for n in range(len(dbz_props)):
             dbz_props[n].label = n + 1
     
-        storm_modes, merged_labels = self._embedding_to_2d_array( dbz_vals.shape,
+        storm_modes, merged_labels, merged_storm_modes = self._embedding_to_2d_array( dbz_vals.shape,
                                                                  dbz_props, 
                                                                 storm_types, 
                                                                 storm_depths, 
                                                                 storm_embs)
-        return storm_modes, merged_labels, dbz_props    
+        return storm_modes, merged_labels, merged_storm_modes, dbz_props    
         
     def get_storm_labels(self, storm_emb, storm_type):
         convert_labels = {'ROTATE': 'SUPERCELL', 
@@ -255,7 +255,7 @@ class StormModeClassifier:
         """ Convert embedded modes and labels to 2D array """
         storm_mode_array = np.zeros(shape, dtype=int)
         merged_labels = np.zeros(shape, dtype=int)
-        
+        merged_storm_modes = []
         for storm_depth in range(3):
             inds = np.where(np.array(storm_depths)==storm_depth)[0]
             # get regionprops, storm types, and embedded status for each storm of current depth
@@ -271,6 +271,7 @@ class StormModeClassifier:
                 # based on storm type and embedded status, get integer corresponding to storm mode, 
                 # and insert into storm modes array
                 storm_type_int, storm_type_str = self.get_storm_labels(emb, mode)
+                merged_storm_modes.append(storm_type_int)
                 storm_mode_array[coords[:,0], coords[:,1]] = storm_type_int
         
-        return storm_mode_array, merged_labels
+        return storm_mode_array, merged_labels, merged_storm_modes
