@@ -1,4 +1,4 @@
-![Unit Tests](https://github.com/WarnOnForecast/MontePython/actions/workflows/continuous_intergration.yml/badge.svg)
+![Unit Tests](https://github.com/WarnOnForecast/MontePython/actions/workflows/continuous_integration.yml/badge.svg)
 
 # MontePython
 
