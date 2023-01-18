@@ -3,6 +3,7 @@ import numpy as np
 import skimage.measure
 from math import sqrt
 from skimage.measure import regionprops 
+from skimage.util import img_as_ubyte
 from skimage.filters.rank import modal
 from sklearn.neighbors import KDTree
 from scipy.ndimage import generic_filter
@@ -303,7 +304,8 @@ class IterativeWatershed:
         2-grid point radius
         """
        # Run modal filter
-        new_labels = modal(labelled_data.astype(int), disk(2))
+        labelled_data = img_as_ubyte(labelled_data)
+        new_labels = modal(labelled_data, disk(2))
         new_labels[labelled_data==0] = 0
 
         return new_labels

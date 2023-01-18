@@ -9,16 +9,26 @@ from numba_kdtree import KDTree
 #import warnings
 #warnings.simplefilter("ignore", UserWarning)
 
-@jit(fastmath=True, parallel=True, forceobj=True)  
-def loop_label_merge(region_tree,original_labels,remaining_labels, label,
-                    qc_object_labels, merge_thresh):
+@jit(fastmath=True, parallel=True)  
+def loop_label_merge(region_tree,
+                     original_labels,
+                     remaining_labels, 
+                     label,
+                     qc_object_labels, 
+                     merge_thresh):
+    
     for other_label in original_labels:
         if other_label != label and other_label in remaining_labels: 
             y_idx, x_idx = np.where( qc_object_labels == other_label)
             xrav = x_idx.ravel()
             yrav = y_idx.ravel()
             other_label_xy_stack = np.dstack((xrav,yrav))[0]
-            dist_btw_objects, _ = region_tree.query(other_label_xy_stack)
+            
+            results = region_tree.query(other_label_xy_stack)
+            # Depending on the numba_kdtree version, the number of returns is different!
+            # The newer versions return 3 items
+            dist_btw_objects = results[0]
+            
             if round(np.amin(dist_btw_objects), 2) <= merge_thresh: 
                 qc_object_labels = whereeq(qc_object_labels, qc_object_labels, other_label, label)
                 remaining_labels = np.unique(qc_object_labels)[1:]
@@ -131,7 +141,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : max_length, int, maximum object length (in grid point distances) 
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
+        qc_object_labels = np.zeros(self.object_labels.shape, dtype=np.int8)
         j=1
         for region in self.object_properties:
             # If the object is shorter than the length, keep it.
@@ -210,10 +220,16 @@ class QualityControler:
                 y_idx, x_idx = np.where( qc_object_labels == label )
                 label_xy_stack = np.dstack([x_idx.ravel(), y_idx.ravel()])[0]
                 region_tree = KDTree( label_xy_stack )
+                #qc_object_labels, remaining_labels = loop_label_merge(
+                #region_tree, original_labels.astype(np.int32), remaining_labels.astype(np.int32), np.int32(label), 
+                #qc_object_labels.astype(np.int32), np.int32(self.qc_params['merge_thresh'])
+                #)
+                
                 qc_object_labels, remaining_labels = loop_label_merge(
-                region_tree,original_labels.astype(np.int64), remaining_labels.astype(np.int64), np.int64(label), 
-                qc_object_labels.astype(np.int64), np.int64(self.qc_params['merge_thresh'])
+                region_tree, original_labels, remaining_labels, label, 
+                qc_object_labels, self.qc_params['merge_thresh']
                 )
+                
                             
         remaining_labels = np.unique(qc_object_labels)[1:]
         for i, label in enumerate(remaining_labels):
