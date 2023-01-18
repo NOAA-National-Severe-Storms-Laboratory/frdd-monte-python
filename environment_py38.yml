@@ -8,3 +8,4 @@ dependencies:
   - scikit-image>=0.19
   - xarray>=0.18 
   - scikit-learn=1.0.2
+  - numba=0.56.4 
