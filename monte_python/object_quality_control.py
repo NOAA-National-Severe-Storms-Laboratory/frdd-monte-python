@@ -9,7 +9,7 @@ from numba_kdtree import KDTree
 #import warnings
 #warnings.simplefilter("ignore", UserWarning)
 
-@jit(fastmath=True, parallel=True)  
+@jit(fastmath=True, parallel=True, forceobj=True)  
 def loop_label_merge(region_tree,original_labels,remaining_labels, label,
                     qc_object_labels, merge_thresh):
     for other_label in original_labels:
