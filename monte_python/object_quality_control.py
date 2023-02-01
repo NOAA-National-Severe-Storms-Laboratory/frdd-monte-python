@@ -54,13 +54,15 @@ class QualityControler:
         - Duration
         - Maximum Value Within
         - Matched to Local Storm Reports
+        - Split objects in half along minor axis based on maximum area
     '''
     qc_to_module_dict = {'min_area' : '_remove_small_objects', 
                          'merge_thresh' : '_merge', 
                          'max_length' : '_remove_long_objects',
                          'min_time' : '_remove_short_duration_objects',
                          'max_thresh' : '_remove_low_intensity_objects',
-                         'match_to_lsr' : '_remove_objects_unmatched_to_lsrs'
+                         'match_to_lsr' : '_remove_objects_unmatched_to_lsrs',
+                         'max_area_before_split' : '_split_region_in_half',
                         }
     
     def __call__(self, input_data, object_labels, object_properties, qc_params):
@@ -90,6 +92,7 @@ class QualityControler:
                                  For max, P=100 and min, P=0. For this quality control, use a nested tuple
                                  E.g., qc_params = [('max_thresh', (value, P)]
                  - 'match_to_lsr', remove objects not matched to an local storm report
+                 - 'max_area_before_split', split objects in half along minor axis based on the given maximum area
                 For additional details, read the functions below. 
  
         Returns:
@@ -200,6 +203,40 @@ class QualityControler:
         self.object_labels = qc_object_labels
         self.object_properties = qc_object_properties
 
+        
+    def _split_region_in_half(self):
+        """Split labelled regions along the minor axis slope if the 
+        maximum area threshold is exceeded"""
+        max_area = self.qc_params['max_area_before_split']
+    
+        max_val = np.max(self.object_labels)
+        qc_object_labels = np.copy(self.object_labels)
+    
+        for region in self.object_properties:
+            if region.area >= max_area:
+                # Get the region's center
+                center = np.mean(region.coords, axis=0).astype(int)
+            
+                # Define the slope and intercept of the splitting line
+                slope = -region.orientation
+                intercept = center[0] - slope * center[1]
+
+                label = region.label
+    
+                # Split the region along the line
+                for i,j in region.coords:
+                    if j < abs(slope * i + intercept):
+                        qc_object_labels[i, j] = label
+                    else:
+                        qc_object_labels[i, j] = max_val+1
+                
+                max_val+=1
+            
+        qc_object_properties = regionprops( qc_object_labels, self.input_data) 
+        self.object_labels = qc_object_labels
+        self.object_properties = qc_object_properties
+            
+        
     def _merge(self):
         ''' 
         Merges near-by objects to limit discontinuous objects from counting as multiple objects.
