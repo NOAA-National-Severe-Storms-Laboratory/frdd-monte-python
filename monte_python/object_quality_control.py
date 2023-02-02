@@ -55,6 +55,7 @@ class QualityControler:
         - Maximum Value Within
         - Matched to Local Storm Reports
         - Split objects in half along minor axis based on maximum area
+        - Trimming 
     '''
     qc_to_module_dict = {'min_area' : '_remove_small_objects', 
                          'merge_thresh' : '_merge', 
@@ -63,6 +64,7 @@ class QualityControler:
                          'max_thresh' : '_remove_low_intensity_objects',
                          'match_to_lsr' : '_remove_objects_unmatched_to_lsrs',
                          'max_area_before_split' : '_split_region_in_half',
+                         'trim' : '_trim',
                         }
     
     def __call__(self, input_data, object_labels, object_properties, qc_params):
@@ -203,36 +205,63 @@ class QualityControler:
         self.object_labels = qc_object_labels
         self.object_properties = qc_object_properties
 
+    def _trim(self):
+        """Trim labelled regions. Useful for the ensemble storm tracks identified 
+        with the iterative watershed method. If the maximum intensity of a region exceeds
+        a threshold than trim the object based on a minimum intensity threshold
         
+        : trim , 2-tuple of maximum intensity and minimum intensity thresholds
+       
+        """
+        qc_object_labels = np.copy(self.object_labels)
+    
+        max_thresh = self.qc_params['trim'][0]
+        bdry_thresh = self.qc_params['trim'][1]
+        
+        for region in self.object_properties:
+            if region.intensity_max >= max_thresh:
+                qc_object_labels[(qc_object_labels==region.label)&(self.input_data<=bdry_thresh)]=0
+    
+        qc_object_properties = regionprops(qc_object_labels, self.input_data)
+    
+        self.object_labels = qc_object_labels
+        self.object_properties = qc_object_properties
+
+    
     def _split_region_in_half(self):
         """Split labelled regions along the minor axis slope if the 
         maximum area threshold is exceeded"""
+        
         max_area = self.qc_params['max_area_before_split']
+        qc_object_labels = np.zeros(self.object_labels.shape, dtype=np.int8)
     
-        max_val = np.max(self.object_labels)
-        qc_object_labels = np.copy(self.object_labels)
-    
+        c = 1 
         for region in self.object_properties:
             if region.area >= max_area:
                 # Get the region's center
-                center = np.mean(region.coords, axis=0).astype(int)
+                y_cent, x_cent = np.mean(region.coords, axis=0).astype(int)
             
                 # Define the slope and intercept of the splitting line
                 slope = -region.orientation
-                intercept = center[0] - slope * center[1]
-
-                label = region.label
+                intercept = y_cent - (slope * x_cent)
     
                 # Split the region along the line
-                for i,j in region.coords:
-                    if j < abs(slope * i + intercept):
-                        qc_object_labels[i, j] = label
+                for j,i in region.coords:
+                    if j < (slope * i) + intercept:
+                        qc_object_labels[j,i] = c
                     else:
-                        qc_object_labels[i, j] = max_val+1
-                
-                max_val+=1
-            
-        qc_object_properties = regionprops( qc_object_labels, self.input_data) 
+                        qc_object_labels[j,i] = c+1
+
+                obj1_area = np.sum(np.where(qc_object_labels==c,1,0))
+                obj2_area = np.sum(np.where(qc_object_labels==c+1,1,0))  
+                # Check that the area has been divided with no loss area!                    
+                assert obj1_area + obj2_area == region.area                   
+                c+=2
+            else:
+                qc_object_labels[self.object_labels==region.label] = c 
+                c+=1
+
+        qc_object_properties = regionprops(qc_object_labels, self.input_data) 
         self.object_labels = qc_object_labels
         self.object_properties = qc_object_properties
             
