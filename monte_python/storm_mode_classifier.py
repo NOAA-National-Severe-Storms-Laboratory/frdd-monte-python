@@ -166,6 +166,8 @@ class StormModeClassifier:
                
            dbz_props : skimage.measure.RegionProps objects 
                Object properties of the the merged_labels array.
+               There is additional property, 'storm_mode', which 
+               provides the storm mode as a string. 
 
         """
         if np.ndim(dbz_vals) != 2:
@@ -188,10 +190,6 @@ class StormModeClassifier:
                         ANALYSIS_DX= self._ANALYSIS_DX
                     )
     
-        #print(f'{storm_types=}')
-        #print(f'{labels_with_matched_rotation=}')
-              
-   
         min_thres_vals = np.arange(
                             self._dbz_thresh + 0, self._dbz_thresh + 23.1, 1
                         )
@@ -225,12 +223,17 @@ class StormModeClassifier:
         for n in range(len(dbz_props)):
             dbz_props[n].label = n + 1
     
-       
-        storm_modes, merged_labels = self._embedding_to_2d_array( dbz_vals.shape,
+        storm_modes, merged_labels, merged_storm_modes = self._embedding_to_2d_array( dbz_vals.shape,
                                                                  dbz_props, 
                                                                 storm_types, 
                                                                 storm_depths, 
                                                                 storm_embs)
+        # Add the storm mode to the dbz_props 
+        for i in range(len(dbz_props)):
+            # convert storm mode integer to string label. 
+            dbz_props[i].storm_mode = self.converter[merged_storm_modes[i]]
+        
+        
         if return_rot_labels:
             return storm_modes, merged_labels, dbz_props, rot_labels
         else:    
@@ -268,6 +271,7 @@ class StormModeClassifier:
         storm_mode_array = np.zeros(shape, dtype=int)
         merged_labels = np.zeros(shape, dtype=int)
         
+        merged_storm_modes = [] 
         for storm_depth in range(3):
             inds = np.where(np.array(storm_depths)==storm_depth)[0]
             # get regionprops, storm types, and embedded status for each storm of current depth
@@ -283,6 +287,7 @@ class StormModeClassifier:
                 # based on storm type and embedded status, get integer corresponding to storm mode, 
                 # and insert into storm modes array
                 storm_type_int, storm_type_str = self.get_storm_labels(emb, mode)
+                merged_storm_modes.append(storm_type_int)
                 storm_mode_array[coords[:,0], coords[:,1]] = storm_type_int
         
-        return storm_mode_array, merged_labels
+        return storm_mode_array, merged_labels, merged_storm_modes 

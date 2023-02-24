@@ -3,6 +3,7 @@ import matplotlib
 import numpy as np 
 from scipy.stats import multivariate_normal
 import matplotlib.colors as colors
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from matplotlib.colors import ListedColormap
 cmap = ListedColormap(["white", "red", "blue", "green", "purple", 'gray'])
@@ -89,10 +90,10 @@ def plot_fake_storms(x,y,data, ax=None, colorbar=True, alpha=1.0):
     return ax 
 
 
-def label_centroid(x, y, ax, object_props, area_thresh=0, storm_modes=None, converter=None):
+def label_centroid(x, y, ax, object_props, area_thresh=0, label_modes=False):
     """Place object label on object's centroid"""
-    if storm_modes is not None:
-        print('Remember that the storm mode label is based on the minimal integer label in a reigon!')
+    #if storm_modes is not None:
+    #    print('Remember that the storm mode label is based on the minimal integer label in a reigon!')
     
     for region in object_props:
         x_cent,y_cent = region.centroid
@@ -100,18 +101,17 @@ def label_centroid(x, y, ax, object_props, area_thresh=0, storm_modes=None, conv
         y_cent=int(y_cent)
         xx, yy = x[x_cent,y_cent], y[x_cent,y_cent]
         
-        if storm_modes is None:
+        if label_modes:
+            fontsize=4
+            #coords = region.coords
+            #ind = int(np.min(storm_modes[coords[:,0], coords[:,1]]))
+            txt = region.storm_mode
+        else:
             fontsize = 6.5 if region.label >= 10 else 8
             if region.area >= area_thresh:
                 txt = region.label
             else:
                 txt = '*'; fontsize=4
-        else:
-            fontsize=4
-            coords = region.coords
-            ind = int(np.min(storm_modes[coords[:,0], coords[:,1]]))
-            txt = converter[ind] 
-          
         ax.text(xx,yy,
                     txt,
                     fontsize=fontsize,
@@ -136,8 +136,7 @@ def plot_storm_labels(x, y, labels, label_props, ax=None, alpha=1.0, area_thresh
     
     return ax    
 
-
-def plot_storm_modes(x, y, modes, label_props=None, converter=None, ax=None, alpha=1.0):
+def plot_storm_modes(x, y, modes, label_props=None, ax=None, alpha=1.0):
     """ Plot Storm Labels """
     if ax is None:
         f, ax = plt.subplots(figsize=(5, 4), dpi=150, facecolor='w', edgecolor='k')
@@ -147,7 +146,10 @@ def plot_storm_modes(x, y, modes, label_props=None, converter=None, ax=None, alp
     #ax.contourf(x,y,rot_vals, cmap='jet', levels=np.arange(25, 175, 12.5))
     c = ax.pcolormesh(x, y, modes, cmap='Set1', alpha=alpha, norm=norm)
     
-    cbar = plt.colorbar(c, ticks=range(8), label='Storm Mode')
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    
+    cbar = plt.colorbar(c, ticks=range(8), label='Storm Mode', cax=cax)
     cbar.ax.set_yticklabels(['ORDINARY', 'SUPERCELL', 'QLCS', 
                                  'SUP_CLUST', 'QLCS_ORD', 'QLCS_MESO', 'OTHER' ], fontsize=5)
     
@@ -157,7 +159,7 @@ def plot_storm_modes(x, y, modes, label_props=None, converter=None, ax=None, alp
     ax.grid(alpha=0.5, ls='dashed')
     
     if label_props is not None:
-        label_centroid(x, y, ax, label_props, modes, converter) 
+        label_centroid(x, y, ax, label_props, label_modes=True) 
     
     return ax    
 
