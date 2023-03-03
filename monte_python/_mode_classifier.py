@@ -3,10 +3,12 @@ import xarray as xr
 
 import numpy as np
 from numba import jit
-from numba.typed import List 
+from typing import List, Type, Tuple
+
 
 from math import atan2, ceil, pi, log, sqrt, pow, fabs, cos, sin
-from skimage.measure import regionprops, label, RegionProperties
+from skimage.measure import regionprops, label
+from skimage.measure._regionprops import RegionProperties
 from .object_identification import label
 from .object_quality_control import QualityControler, whereeq
 from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
@@ -15,7 +17,7 @@ import warnings
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
-def storm_to_circle(qc_dbzcomp_prop: RegionProperties) -> np.ndarray:
+def storm_to_circle(qc_dbzcomp_prop: Type[RegionProperties]) -> np.ndarray:
     """
     Convert storm to a circle when searching for rotation tracks.
 
@@ -46,14 +48,14 @@ def storm_to_circle(qc_dbzcomp_prop: RegionProperties) -> np.ndarray:
 def get_storm_types(
     model: str,
     qc_dbzcomp_labels: np.ndarray,
-    qc_dbzcomp_props: list[RegionProperties],
+    qc_dbzcomp_props: List[RegionProperties],
     dbzcomp: np.ndarray,
     qc_uh_labels: np.ndarray,
-    qc_uh_props: list[RegionProperties],
+    qc_uh_props: List[RegionProperties],
     uh: np.ndarray,
     ANALYSIS_DX: float,
     last_iter: bool = False,
-) -> tuple[list[str], list[int]]:
+) -> Tuple[List[str], List[int]]:
     """
     Classify storm objects based on REFLCOMP and UH5000/AZSHR fields.
 
@@ -134,7 +136,7 @@ def get_storm_types(
 
 
 @jit(nopython=True)
-def check_overlap(coords1, coords2):
+def check_overlap(coords1 : np.ndarray, coords2: np.ndarray) -> bool:
     """Check if a single pair of coordinates between two sets of coordinates overlap.
     This function uses the numba.jit so it is already efficient!
     """
@@ -648,13 +650,11 @@ def get_constituent_storms(
 def iterate_storm_types(storm_types, new_storm_types, new_dbzcomp_labels, 
                         dbz_coords, dbz_centroid, dbz_equiv_diam, dbz_area,
                         temp_storm_types, temp_coords, temp_prop_label, temp_dbzcomp_labels,
-                        temp_centroid,temp_equiv_diam, temp_area, label_inc): 
+                        temp_centroid, temp_equiv_diam, temp_area, label_inc): 
     
     new_inds = []   
     for n, storm_type in enumerate(storm_types):
-        
         # Cycle through candidate storm objects
-
         prelim_new_storm_types = []
         prelim_new_dbzcomp_centroid = []
         prelim_new_dbzcomp_equiv_diam= []
