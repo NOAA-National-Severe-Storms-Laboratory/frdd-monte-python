@@ -3,8 +3,12 @@ import xarray as xr
 
 import numpy as np
 from numba import jit
+from typing import List, Type, Tuple
+
+
 from math import atan2, ceil, pi, log, sqrt, pow, fabs, cos, sin
 from skimage.measure import regionprops, label
+from skimage.measure._regionprops import RegionProperties
 from .object_identification import label
 from .object_quality_control import QualityControler, whereeq
 from numba.core.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning
@@ -13,7 +17,135 @@ import warnings
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 
-#ANALYSIS_DX = 3000
+def storm_to_circle(qc_dbzcomp_prop: Type[RegionProperties]) -> np.ndarray:
+    """
+    Convert storm to a circle when searching for rotation tracks.
+
+    Parameters
+    ----------
+    qc_dbzcomp_prop : skimage.measure.RegionProps object
+        Properties of a single region in the REFLCOMP field.
+
+    Returns
+    -------
+    dbz_coords : numpy.ndarray of shape (n, 2)
+        Coordinates of a circular region centered at the centroid of the region
+        in `qc_dbzcomp_prop` and with a radius equal to the equivalent diameter
+        of the region divided by 3.0.
+
+    """
+    ic, jc = map(int, qc_dbzcomp_prop.centroid)
+    rad = max(2, int(np.ceil(qc_dbzcomp_prop.equivalent_diameter / 3.0)))
+    imin, imax = ic - rad, ic + rad + 1
+    jmin, jmax = jc - rad, jc + rad + 1
+    i_indices = np.arange(imin, imax)
+    j_indices = np.arange(jmin, jmax)
+    i_grid, j_grid = np.meshgrid(i_indices, j_indices)
+    dbz_coords = np.column_stack([i_grid.ravel(), j_grid.ravel()])
+    return dbz_coords
+
+
+def get_storm_types(
+    model: str,
+    qc_dbzcomp_labels: np.ndarray,
+    qc_dbzcomp_props: List[RegionProperties],
+    dbzcomp: np.ndarray,
+    qc_uh_labels: np.ndarray,
+    qc_uh_props: List[RegionProperties],
+    uh: np.ndarray,
+    ANALYSIS_DX: float,
+    last_iter: bool = False,
+) -> Tuple[List[str], List[int]]:
+    """
+    Classify storm objects based on REFLCOMP and UH5000/AZSHR fields.
+
+    Parameters
+    ----------
+    model : str
+        Name of the forecast model.
+    qc_dbzcomp_labels : numpy.ndarray of shape (ny, nx)
+        Single QC'd REFLCOMP 2-D label numpy array.
+    qc_dbzcomp_props : list of skimage.measure.RegionProps objects
+        Regionprops for each label in `qc_dbzcomp_labels`.
+    dbzcomp : numpy.ndarray of shape (ny, nx)
+        2-D REFLCOMP field from which `qc_dbzcomp_labels` and `qc_dbzcomp_props` were generated.
+    qc_uh_labels : numpy.ndarray of shape (ny, nx)
+        Single QC'd UH5000/AZSHR 2-D label numpy array.
+    qc_uh_props : list of skimage.measure.RegionProps objects
+        Regionprops for each label in `qc_uh_labels`.
+    uh : numpy.ndarray of shape (ny, nx)
+        2-D UH5000/AZSHR field from which `qc_uh_labels` and `qc_uh_props` were generated.
+    ANALYSIS_DX : float
+        Grid spacing in meters.
+    last_iter : bool, optional
+        Whether or not this is the last iteration of the forecast model. Default is `False`.
+
+    Returns
+    -------
+    storm_types : list of str
+        List of storm types (one for each regionprops in `qc_dbzcomp_props`, i.e., one for each REFLCOMP object).
+    labels_with_matched_rotation : list of int
+        Labels in `qc_dbzcomp_labels` that overlap with `qc_uh_props`.
+
+    """
+    storm_types = []
+    labels_with_matched_rotation = []
+    all_uh_coords = []
+
+    # Concatenate all coordinates of strong rotation, then identify regions with proximate rotation objects
+    all_uh_coords = np.concatenate([qc_uh_prop.coords for qc_uh_prop in qc_uh_props])
+
+    if len(all_uh_coords) > 0:
+        # Convert the storm regions to a circle and search for potentially overlapping
+        # rotation tracks. 
+        labels_with_matched_rotation = [
+                qc_dbzcomp_prop.label
+                for qc_dbzcomp_prop in qc_dbzcomp_props
+                if check_overlap(storm_to_circle(qc_dbzcomp_prop), all_uh_coords)
+                ]
+
+    
+    append = storm_types.append
+    for region in qc_dbzcomp_props:
+
+        # see scikit-image regionprops documentation for definitions of object attributes
+        DBZ_length = region.major_axis_length * ANALYSIS_DX
+        DBZ_area = region.area * pow(ANALYSIS_DX, 2)
+        eccentricity = region.eccentricity
+        solidity = region.solidity
+        label = region.label
+
+        if DBZ_area < 100e6 or (DBZ_area < 200e6 and eccentricity < 0.7 and solidity > 0.7):
+            # If the storm is small and not elongated or matched to rotation. 
+            storm_type = "ROTATE" if label in labels_with_matched_rotation else "NONROT"
+        elif eccentricity > 0.97:
+            # If the storm is quite elongated and lengthy, then QLCL else amorphous. 
+            storm_type = "QLCS" if DBZ_length > 75e3 else "AMORPHOUS"
+        elif eccentricity > 0.9 and DBZ_length > 150e3:
+            storm_type = "QLCS"
+        elif eccentricity > 0.93 or DBZ_area > 500e6 or DBZ_length > 75e3 or solidity < 0.7:
+            storm_type = "AMORPHOUS"
+        elif label in labels_with_matched_rotation:
+            storm_type = "ROTATE"
+        else:
+            storm_type = "NONROT"
+
+        append(storm_type)
+
+    return storm_types, labels_with_matched_rotation
+
+
+@jit(nopython=True)
+def check_overlap(coords1 : np.ndarray, coords2: np.ndarray) -> bool:
+    """Check if a single pair of coordinates between two sets of coordinates overlap.
+    This function uses the numba.jit so it is already efficient!
+    """
+    for item1 in coords1:
+        for item2 in coords2:
+            if (item1 == item2).all():
+                return True
+
+    return False
 
 def get_constituent_storms(
     model,
@@ -68,7 +200,7 @@ def get_constituent_storms(
     dbz_coords = [prop.coords for prop in dbzcomp_props]
     if (len(temp_storm_types)):
         new_storm_types,new_dbzcomp_labels,n_append = iterate_storm_types(
-                        storm_types, new_storm_types,new_dbzcomp_labels,
+                        storm_types, new_storm_types, new_dbzcomp_labels,
                         dbz_coords, 
                         [prop.centroid for prop in dbzcomp_props],
                         [prop.equivalent_diameter for prop in dbzcomp_props], 
@@ -512,18 +644,17 @@ def get_constituent_storms(
 
     return new_storm_types, new_storm_embs, new_dbzcomp_labels, new_dbzcomp_props
   
-  
+    
+
 @jit(fastmath=True) 
 def iterate_storm_types(storm_types, new_storm_types, new_dbzcomp_labels, 
-                        dbz_coords,dbz_centroid,dbz_equiv_diam,dbz_area,
-                        temp_storm_types, temp_coords,temp_prop_label,temp_dbzcomp_labels,
-                        temp_centroid,temp_equiv_diam, temp_area, label_inc): 
+                        dbz_coords, dbz_centroid, dbz_equiv_diam, dbz_area,
+                        temp_storm_types, temp_coords, temp_prop_label, temp_dbzcomp_labels,
+                        temp_centroid, temp_equiv_diam, temp_area, label_inc): 
     
     new_inds = []   
     for n, storm_type in enumerate(storm_types):
-        
         # Cycle through candidate storm objects
-
         prelim_new_storm_types = []
         prelim_new_dbzcomp_centroid = []
         prelim_new_dbzcomp_equiv_diam= []
@@ -592,7 +723,7 @@ def iterate_storm_types(storm_types, new_storm_types, new_dbzcomp_labels,
                     new_dbzcomp_labels = whereeq(new_dbzcomp_labels.astype(np.int64),temp_dbzcomp_labels.astype(np.int64),
                     np.int64(prelim_temp_labels[nnn] - label_inc),np.int64(prelim_temp_labels[nnn])).astype(np.int8)
                     
-    return new_storm_types,new_dbzcomp_labels,new_inds
+    return new_storm_types, new_dbzcomp_labels, new_inds
 
  
 def get_storm_labels(storm_emb, storm_type):
@@ -636,123 +767,6 @@ def get_storm_labels(storm_emb, storm_type):
     type_int = int(digitize_types[type_str])
 
     return type_int, type_str
-
-
-def get_storm_types(
-    model,
-    qc_dbzcomp_labels,
-    qc_dbzcomp_props,
-    dbzcomp,
-    qc_uh_labels,
-    qc_uh_props,
-    uh,
-    ANALYSIS_DX, 
-    last_iter=False,
-):
-    """
-    # PURPOSE:
-
-    # Classify storm objects based on REFLCOMP and UH5000/AZSHR fields
-
-    # INPUTS:
-
-    # model (str), date (str), lead_time (int; mins) for which qc_dbzcomp_labels, etc. are valid
-
-    # qc_dbzcomp_labels: single QC'd REFLCOMP 2-D label numpy array
-    # qc_dbzcomp_props: regionprops for each label in qc_dbzcomp_labels
-    # dbzcomp: 2-D REFLCOMP field from which qc_dbzcomp_labels, qc_dbzcomp_props generated
-
-    # uh_labels/qc_uh_props/uh: as with qc_dbzcomp_labels/qc_dbzcomp_props/dbzcomp
-
-    # RETURNS:
-
-    # List of storm types (one for each regionprops in qc_dbzcomp_props, i.e., one for each REFLCOMP object)
-
-    # Author: Corey Potvin
-    """
-    ##print(f'{ANALYSIS_DX=}')
-    
-    storm_types = []
-    labels_with_matched_rotation = []
-    all_uh_coords = []
-
-    # Concatenate all coordinates of strong rotation, then identify regions with proximate rotation objects
-
-    for n, qc_uh_prop in enumerate(qc_uh_props):
-        for coord in qc_uh_prop.coords:
-            all_uh_coords.append(coord)
-    all_uh_coords = np.asarray(all_uh_coords)
-
-    if len(all_uh_coords) > 0:
-        for qc_dbzcomp_prop in qc_dbzcomp_props:
-            ic, jc = int(qc_dbzcomp_prop.centroid[0]), int(qc_dbzcomp_prop.centroid[1])
-            rad = max(2, ceil(qc_dbzcomp_prop.equivalent_diameter / 3.0))
-            imin, imax = ic - rad, ic + rad
-            jmin, jmax = jc - rad, jc + rad
-            dbz_coords = []
-            for i in range(imin, imax + 1):
-                for j in range(jmin, jmax + 1):
-                    dbz_coords.append([i, j])
-            dbz_coords = np.asarray(dbz_coords)
-            if check_overlap(dbz_coords, all_uh_coords):
-                labels_with_matched_rotation.append(qc_dbzcomp_prop.label)
-
-    for n, region in enumerate(qc_dbzcomp_props):
-
-        # see scikit-image regionprops documentation for definitions of object attributes
-
-        DBZ_length = region.major_axis_length * ANALYSIS_DX
-        DBZ_area = region.area * pow(ANALYSIS_DX, 2)
-
-        if DBZ_area < 100e6 or (
-            DBZ_area < 200e6 and region.eccentricity < 0.7 and region.solidity > 0.7
-        ):
-
-            if region.label in labels_with_matched_rotation:
-                storm_type = "ROTATE"
-            else:
-                storm_type = "NONROT"
-
-        elif region.eccentricity > 0.97:
-
-            if DBZ_length > 75e3:
-                storm_type = "QLCS"
-            else:
-                storm_type = "AMORPHOUS"
-
-        elif region.eccentricity > 0.9 and DBZ_length > 150e3:
-            storm_type = "QLCS"
-
-        elif (
-            region.eccentricity > 0.93
-            or DBZ_area > 500e6
-            or DBZ_length > 75e3
-            or region.solidity < 0.7
-        ):
-            storm_type = "AMORPHOUS"
-
-        elif region.label in labels_with_matched_rotation:
-            storm_type = "ROTATE"
-
-        else:
-            storm_type = "NONROT"
-
-        # if storm_type in ['ROTATE', 'NONROT'] and (DBZ_length > 75e3 or region.solidity < 0.7 or region.eccentricity > 0.97):
-        #  storm_type = 'AMORPHOUS'
-
-        storm_types.append(storm_type)
-
-    return storm_types, labels_with_matched_rotation
-
-@jit
-def check_overlap(coords1, coords2):
-
-    for item1 in coords1:
-        for item2 in coords2:
-            if (item1 == item2).all():
-                return True
-
-    return False
 
 
 def object_hierarchy(storm_types, dbzcomp_props):
