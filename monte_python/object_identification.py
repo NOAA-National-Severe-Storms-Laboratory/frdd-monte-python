@@ -155,6 +155,63 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     else: 
         return labels
 
+def label_per_member(data_to_label, method, params, qc_params):
+    """
+    Identify storm tracks per ensemble member.
+
+    Args:
+    -------------------
+        data_to_label : array, (NE,NY,NX)
+            Ensemble data to label 
+        method : str
+            Object identification method
+        params : dict
+            parameters for the chosen object identification method
+        qc_params : list of 2-tuples 
+            list of tuples where the first element is the 
+            str of quality control to apply and the second element is 
+            the parameter. This list is turned into a ordered dictionary 
+            so that order is maintained. 
+
+    Returns: 
+        Quality-controlled objects identified from data_to_label
+            
+    """
+    object_labels_per_ens_mem = np.zeros((data_to_label.shape))
+    for mem in range(np.shape(object_labels_per_ens_mem)[0]):
+        object_labels_per_ens_mem[mem, :, :] = label_with_qc(data_to_label[mem,:,:], 
+                                                             params, 
+                                                             qc_params, 
+                                                             method=method, 
+                                                             return_object_properties=False)
+
+    return object_labels_per_ens_mem    
+    
+    
+def label_with_qc(input_data, params, qc_params, method='watershed', return_object_properties=True):
+    """
+    Couples the label function with QCing into a single step. 
+    """
+    qc = QualityControler()
+    labels, props = label(
+            input_data=input_data,
+            method=method,
+            params=params,
+        )
+
+    labels, props = qc.quality_control(
+            input_data=input_data,
+            object_labels=labels,
+            object_properties=props,
+            qc_params=qc_params,
+        )
+    
+    if return_object_properties:
+        return labels, props
+    else:
+        return labels
+    
+
 def quantize_probabilities(ensemble_probabilities, ensemble_size):
     """
     Quantize ensemble probabilities to a discrete field. 
