@@ -5,24 +5,24 @@ parameters:
 - name: package_version
   displayName: Package Version
   type: string
-  default: 1.1
-
+  default: 2.0
+  
 variables:
-  PACKAGE_VERSION: ${{ parameters.package_version }}.$(Build.BuildId)
+- name: PACKAGE_VERSION
+  value: ${{ parameters.package_version }}.$(Build.BuildId)
+- name: vmImageName
+  value: 'ubuntu-22.04'
 
 stages:
 - stage: Build
   displayName: Build Package
   jobs:
       - job:
-        displayName: ubuntu-18.04
+        displayName: ${{ variables.vmImageName }}
         pool:
-          vmImage: 'ubuntu-18.04'
+          vmImage: $(vmImageName)
         strategy:
           matrix:
-            # Python36:
-            #   python.version: '3.6'
-            #   env_file: 'environment.yml'
             Python38:
               python.version: '3.8'              
               env_file: 'environment_py38.yml'
@@ -31,10 +31,26 @@ stages:
         - bash: echo "##vso[task.prependpath]$CONDA/bin"
           displayName: Add conda to PATH
       
-        - script: conda env update --name base --file $(env_file)
-          displayName: Create Anaconda environment
-      
+        # Install mamba to manage dependencies faster
         - bash: |
+            conda config --set allow_conda_downgrades true
+            conda install conda=4.12.0 -y
+            conda install --yes mamba -c conda-forge
+          displayName: Install Mamba package manager
+     
+        - task: PipAuthenticate@1
+          displayName: 'Pip Authenticate'
+          inputs:
+            artifactFeeds: 'Warn-on-Forecast/wofs-post'
+            
+        - bash: |
+            # workaround based on recent failures
+            rm /usr/share/miniconda/pkgs/cache/*.json    
+            mamba env create --file $(env_file)
+          displayName: Create mamba environment            
+     
+        - bash: |
+            source activate monte_python
             python setup.py bdist_wheel
           displayName: Build wheel
 
