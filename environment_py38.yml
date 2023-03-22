@@ -9,3 +9,5 @@ dependencies:
   - xarray>=0.18 
   - scikit-learn=1.0.2
   - numba=0.56.4 
+  - pip: 
+    - numba_kdtree
