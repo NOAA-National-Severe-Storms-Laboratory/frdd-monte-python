@@ -9,7 +9,7 @@ from numba_kdtree import KDTree
 #import warnings
 #warnings.simplefilter("ignore", UserWarning)
 
-@jit(fastmath=True, parallel=True)  
+@jit(fastmath=True, parallel=False)  
 def loop_label_merge(region_tree,
                      original_labels,
                      remaining_labels, 
@@ -36,7 +36,7 @@ def loop_label_merge(region_tree,
     return qc_object_labels, remaining_labels
 
 
-@jit(fastmath=True,parallel=True) 
+@jit(fastmath=True,parallel=False) 
 def whereeq(arr,arrind,val,setval):
     for i in np.arange(arr.shape[0]):
         for j in np.arange(arr.shape[1]):
@@ -113,7 +113,6 @@ class QualityControler:
         
         for qc_method in self.qc_params.keys():
             getattr(self, self.qc_to_module_dict[qc_method])()
-            
         return (self.object_labels, self.object_properties) 
 
     def _remove_small_objects(self):
@@ -126,7 +125,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : min_area, int, minimum area (in number of grid points) of an object
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8) 
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int16) 
         j = 1
         for region in self.object_properties:
              if region.area >= self.qc_params['min_area']:
@@ -146,7 +145,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : max_length, int, maximum object length (in grid point distances) 
         '''
-        qc_object_labels = np.zeros(self.object_labels.shape, dtype=np.int8)
+        qc_object_labels = np.zeros(self.object_labels.shape, dtype=np.int16)
         j=1
         for region in self.object_properties:
             # If the object is shorter than the length, keep it.
@@ -167,7 +166,7 @@ class QualityControler:
             : object_labels_and_props, 2-tuple of 2D np array of object labels and the associated regionprops object 
             : max_thresh, float, intensity threshold for the 75th percentile
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int16)
         j=1
         val, P = self.qc_params['max_thresh']
         for region in self.object_properties: 
@@ -191,7 +190,7 @@ class QualityControler:
             : min_time, int, minimum duration (in terms of number of time steps) 
             : time_argmax_idxs, When applying np.argmax over time dimensions of an array
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int16)
         j=1
         time_argmax_idxs = self.qc_params['min_time'][1]
         for region in self.object_properties:     
@@ -233,7 +232,7 @@ class QualityControler:
         maximum area threshold is exceeded"""
         
         max_area = self.qc_params['max_area_before_split']
-        qc_object_labels = np.zeros(self.object_labels.shape, dtype=np.int8)
+        qc_object_labels = np.zeros(self.object_labels.shape, dtype=np.int16)
     
         c = 1 
         for region in self.object_properties:
@@ -309,7 +308,7 @@ class QualityControler:
         '''
         Removes objects unmatched to Local Storm Reports (LSRs).
         '''
-        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int8)
+        qc_object_labels = np.zeros( self.object_labels.shape, dtype=np.int16)
         j=1
         for region in self.object_properties:
             kdbelled_points, labelled_datatree = spatial.cKDTree( region.coords )

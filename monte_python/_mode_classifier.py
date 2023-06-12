@@ -93,8 +93,9 @@ def get_storm_types(
     all_uh_coords = []
 
     # Concatenate all coordinates of strong rotation, then identify regions with proximate rotation objects
-    all_uh_coords = np.concatenate([qc_uh_prop.coords for qc_uh_prop in qc_uh_props])
-
+    if len(qc_uh_props) > 0:
+      all_uh_coords = np.concatenate([qc_uh_prop.coords for qc_uh_prop in qc_uh_props])
+    
     if len(all_uh_coords) > 0:
         # Convert the storm regions to a circle and search for potentially overlapping
         # rotation tracks. 
@@ -721,7 +722,7 @@ def iterate_storm_types(storm_types, new_storm_types, new_dbzcomp_labels,
                     dbz_area.append(prelim_new_dbzcomp_area[nnn])
                     dbz_equiv_diam.append(prelim_new_dbzcomp_equiv_diam[nnn])
                     new_dbzcomp_labels = whereeq(new_dbzcomp_labels.astype(np.int64),temp_dbzcomp_labels.astype(np.int64),
-                    np.int64(prelim_temp_labels[nnn] - label_inc),np.int64(prelim_temp_labels[nnn])).astype(np.int8)
+                    np.int64(prelim_temp_labels[nnn] - label_inc),np.int64(prelim_temp_labels[nnn])).astype(np.int16)
                     
     return new_storm_types, new_dbzcomp_labels, new_inds
 
