@@ -11,20 +11,27 @@ jobs:
         python-version: ["3.8", "3.9", "3.10"]
     steps: 
     - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+    
+    - name: Setup conda
+      uses: conda-incubator/setup-miniconda@v2
       with:
+        activate-environment: test-env
+        environment-file: environment.yml  # If you have one
         python-version: ${{ matrix.python-version }}
+        auto-activate-base: true
+
+    - name: Install mamba
+      run: |
+        conda install mamba -c conda-forge
+
     - name: Install dependencies
       run: |
         python --version 
-        python -m pip install --upgrade pip
-        python3 -m pip install --upgrade pytest-cov codecov coverage
-        python -m pip install -r requirements.txt
-        python -m pip install scipy
-        python -m pip install -e .
+        mamba install --file requirements.txt
+        mamba install scipy
+        mamba install pytest-cov codecov coverage
+        python -m pip install -e .  # Still using pip for editable install
     
     - name: Run the test scripts 
       run: |
         python -m pytest --import-mode=append tests/
-    
