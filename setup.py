@@ -37,7 +37,7 @@ setup(
         'scikit-learn',
         'scikit-image>=0.18.1',
         'matplotlib<=3.4.3',
-        'xarray >=0.21.1',
+        'xarray>=0.21.1',
         'numba',
         'numba-kdtree'
     ],
