@@ -32,6 +32,8 @@ setup(
         'Programming Language :: Python :: 3'
     ],
     install_requires = [
+        'numpy',
+        'scipy', 
         'scikit-learn',
         'scikit-image>=0.18.1',
         'matplotlib<=3.4.3',
