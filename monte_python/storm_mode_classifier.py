@@ -129,7 +129,6 @@ class StormModeClassifier:
             method="single_threshold",
             params={"bdry_thresh": thresh},
         )
-  
         labels_qced, props_qced = QualityControler().quality_control(
                     object_labels=labels,
                     object_properties=label_props,
