@@ -33,13 +33,13 @@ setup(
     ],
     install_requires = [
         'numpy',
-        'scipy', 
         'scikit-learn',
         'scikit-image>=0.18.1',
         'matplotlib<=3.4.3',
         'xarray>=0.21.1',
         'numba',
-        'numba-kdtree'
+        'numba-kdtree',
+        'scipy',
     ],
     packages=['monte_python', 'monte_python._plot'],  # Required
     python_requires='>=3.8, <4',
