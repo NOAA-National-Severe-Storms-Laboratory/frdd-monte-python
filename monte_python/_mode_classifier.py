@@ -93,9 +93,12 @@ def get_storm_types(
     all_uh_coords = []
 
     # Concatenate all coordinates of strong rotation, then identify regions with proximate rotation objects
-    if len(qc_uh_props) > 0:
-      all_uh_coords = np.concatenate([qc_uh_prop.coords for qc_uh_prop in qc_uh_props])
-    
+    coord_list = [qc_uh_prop.coords for qc_uh_prop in qc_uh_props]
+    if len(coord_list) > 0:
+        all_uh_coords = np.concatenate(coord_list)
+    else:
+        all_uh_coords = np.array([])
+
     if len(all_uh_coords) > 0:
         # Convert the storm regions to a circle and search for potentially overlapping
         # rotation tracks. 

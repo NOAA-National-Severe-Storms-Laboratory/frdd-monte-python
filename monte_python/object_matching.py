@@ -46,25 +46,29 @@ class ObjectMatcher:
 
     """
     def __init__( self, min_dist_max=0, cent_dist_max=None, time_max=0, 
-                 score_thresh = 0.2, one_to_one = False, 
-                match_to_reports=False):
+                 score_thresh = 0.2, one_to_one = False, area_min=50, 
+                match_to_reports=False, matching_criteria=None):
         
         self.min_dist_max = min_dist_max
         self.cent_dist_max = cent_dist_max
+        self.area_min = area_min 
         self.time_max = 1 if time_max == 0 else time_max 
         self.score_thresh = score_thresh
         self.one_to_one = one_to_one
         self.only_min_dist = True if cent_dist_max is None else False
         self.max_prob_dist = 0.9
         
-        if match_to_reports:
-            if self.one_to_one:
-                print('When matching to reports, one_to_one must be False, changing it to False')
-                self.one_to_one=False
-            self.matching_criteria = self.report_matching_criteria
-        else:
-            self.matching_criteria = self._total_interest_score 
+        if matching_criteria is None: 
         
+            if match_to_reports:
+                if self.one_to_one:
+                    print('When matching to reports, one_to_one must be False, changing it to False')
+                    self.one_to_one=False
+                self.matching_criteria = self.report_matching_criteria
+            else:
+                self.matching_criteria = self._total_interest_score 
+        else:
+            self.matching_criteria = matching_criteria
 
     def match_objects(self, object_set_a, object_set_b, times_a=None, times_b=None, input_a=None, input_b=None, ):
         warnings.warn("""ObjectMatcher.match_objects is deprecated. 
@@ -280,34 +284,21 @@ class ObjectMatcher:
         max_score = self.max_probability_score(region_a)
 
         # Weighing minimum distance more than centroid distance. 
-        score = 0.5*(max_score + min_dist_score) 
+        #score = 0.5*(max_score + min_dist_score) 
+        
+        # Incorporate area; If the track is really small, place less weight
+        if max_score <= 0.5:
+            if region_a.area <= 50: 
+                score = 0.5*(max_score + min_dist_score) 
+            else:
+                score = 0.5*(max_score + min_dist_score) 
+        else:
+            score = min_dist_score + max_score
         
         ##print(f'{max_score=}', f'{min_dist_score}')
         return score, dx, dy
         
-        """
-        # If the minimum distance is zero, then match it
-        if np.round(min_dist,3) < 1:
-            # Adding the "1000" to ensure that in the sorting this object is given
-            # the highest priority for matching. 
-            return self.score_thresh+1000, dx, dy
         
-        # Otherwise, compute the total interest score with the maximum displacement as an additional component.
-        elif np.round(cent_dist,5) <= np.round(self.cent_dist_max,5):
-            # The minimum distance score
-            min_dist_score = self.get_min_disp(dist_array)
-            # Centroid distance score
-            cent_dist_score, dx, dy = self.get_cent_disp(region_a_cent, region_b_cent)
-            # Compute maximum intensity score. Compute for region_b, which should be 
-            max_score = self.max_intensity_score(region_a)
-
-            # Weighing minimum distance more than centroid distance. 
-            score = 0.5*(max_score + min_dist_score) #(0.1*cent_dist_score + 0.9*min_dist_score)
-            return score, dx, dy
-        else:
-            # Minus 0.1 so that these object cannot be consider a match. 
-            return self.score_thresh-0.1, dx, dy
-        """
     
     def _total_interest_score(self, region_a, region_b, time_a, time_b, dist_array, option=True):
         """ Calculates the Total Interest Score (based on Skinner et al. 2018).
@@ -336,7 +327,7 @@ class ObjectMatcher:
         norm_min_dist = self.get_min_disp(dist_array)
         
         if self.only_min_dist:
-            return norm_min_dist
+            return norm_min_dist, 0, 0 if option else norm_min_dist
         else:
             norm_cent_dist, dx, dy = self.get_cent_disp(region_a_cent, region_b_cent)
             norm_time_disp = self.get_time_difference(time_a, time_b)
