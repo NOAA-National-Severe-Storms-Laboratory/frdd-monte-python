@@ -18,7 +18,6 @@ jobs:
     - name: Install dependencies
       run: |
         python --version 
-        python -m pip install --upgrade pip
         python3 -m pip install --upgrade pytest-cov codecov coverage
         python -m pip install --no-build-isolation -r requirements.txt
         python -m pip install -e .
