@@ -1,29 +1,36 @@
 name: CI 
 
-on : [push, pull_request]
+on:
+  push:
+  pull_request:
 
 jobs:
   unit_tests: 
-    name : Unit Tests
+    name: Unit Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10"]
+
     steps: 
     - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+
+    - name: Set up Conda with Python ${{ matrix.python-version }}
+      uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
+        activate-environment: test-env
+        mamba-version: "*"
+
     - name: Install dependencies
+      shell: bash -l {0}
       run: |
-        python --version 
-        python -m pip install --upgrade pip
-        python3 -m pip install --upgrade pytest-cov codecov coverage
-        python -m pip install -r requirements.txt
+        mamba install -c conda-forge --file requirements.txt
+        mamba install -c conda-forge pytest-cov codecov coverage
         python -m pip install -e .
-    
+
     - name: Run the test scripts 
+      shell: bash -l {0}
       run: |
         python -m pytest --import-mode=append tests/
-    
