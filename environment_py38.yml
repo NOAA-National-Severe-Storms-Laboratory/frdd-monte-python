@@ -4,9 +4,14 @@ channels:
   - defaults
 dependencies:
   - python=3.8.10
-  - pip=21.1
+  - pip
+  - scipy
   - scikit-image>=0.19
-  - xarray>=0.18 
-  - scikit-learn=1.0.2
-  - numba=0.56.4
-   
+  - xarray>=0.21.1
+  - scikit-learn
+  - matplotlib<=3.4.3
+  - pandas
+  - netCDF4
+  - numba
+  - pip: 
+    - numba_kdtree

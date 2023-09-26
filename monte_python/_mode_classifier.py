@@ -725,7 +725,7 @@ def iterate_storm_types(storm_types, new_storm_types, new_dbzcomp_labels,
                     dbz_area.append(prelim_new_dbzcomp_area[nnn])
                     dbz_equiv_diam.append(prelim_new_dbzcomp_equiv_diam[nnn])
                     new_dbzcomp_labels = whereeq(new_dbzcomp_labels.astype(np.int64),temp_dbzcomp_labels.astype(np.int64),
-                    np.int64(prelim_temp_labels[nnn] - label_inc),np.int64(prelim_temp_labels[nnn])).astype(np.int8)
+                    np.int64(prelim_temp_labels[nnn] - label_inc),np.int64(prelim_temp_labels[nnn])).astype(np.int16)
                     
     return new_storm_types, new_dbzcomp_labels, new_inds
 
