@@ -20,7 +20,6 @@ jobs:
         python --version 
         python3 -m pip install --upgrade pytest-cov codecov coverage
         python -m pip install --no-build-isolation -r requirements.txt
-        python -m pip install -e .
     
     - name: Run the test scripts 
       run: |
