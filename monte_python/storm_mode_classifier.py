@@ -69,7 +69,7 @@ class StormModeClassifier:
              'OTHER']
     
     
-    def __init__(self, dbz_thresh=43., rot_thresh=55., grid_spacing=3000, 
+    def __init__(self, dbz_thresh=43., rot_thresh=50., grid_spacing=3000, 
                  dbz_qc_params=None, rot_qc_params=None, emb_qc_params = None):
         
         self._dbz_thresh = dbz_thresh
