@@ -1,0 +1,17 @@
+name: monte_python
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.8.15
+  - pip
+  - scipy
+  - scikit-image>=0.19
+  - xarray>=0.21.1
+  - scikit-learn
+  - matplotlib<=3.4.3
+  - pandas
+  - netCDF4
+  - numba
+  - pip: 
+    - numba_kdtree
