@@ -26,6 +26,9 @@ stages:
             Python38:
               python.version: '3.8'              
               env_file: 'environment_py38.yml'
+            Python310:
+              python.version: '3.10'              
+              env_file: 'environment_py310.yml'
               
         steps:
         - bash: echo "##vso[task.prependpath]$CONDA/bin"
