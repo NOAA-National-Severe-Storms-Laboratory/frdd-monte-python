@@ -4,6 +4,7 @@ from .object_quality_control import QualityControler
 from .object_matching import ObjectMatcher
 from .object_tracking import ObjectTracker 
 from .storm_mode_classifier import StormModeClassifier
+from .object_verifier import ObjectVerifier
 
 # the plotting 
 from ._plot.plotter import (create_fake_storms,
