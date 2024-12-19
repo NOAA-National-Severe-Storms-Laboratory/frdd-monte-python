@@ -35,11 +35,11 @@ stages:
           displayName: Add conda to PATH
       
         # Install mamba to manage dependencies faster
-        - bash: |
-            conda config --set allow_conda_downgrades true
-            conda install conda=4.12.0 -y
-            conda install --yes mamba -c conda-forge
-          displayName: Install Mamba package manager
+        # - bash: |
+        #     conda config --set allow_conda_downgrades true
+        #     conda install conda=4.12.0 -y
+        #     conda install --yes mamba -c conda-forge
+        #   displayName: Install Mamba package manager
      
         - task: PipAuthenticate@1
           displayName: 'Pip Authenticate'
@@ -48,8 +48,8 @@ stages:
             
         - bash: |
             # workaround based on recent failures
-            rm /usr/share/miniconda/pkgs/cache/*.json    
-            mamba env create --file $(env_file)
+            # rm /usr/share/miniconda/pkgs/cache/*.json    
+            conda env create --file $(env_file)
           displayName: Create mamba environment            
      
         - bash: |
