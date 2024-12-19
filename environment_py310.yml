@@ -13,5 +13,6 @@ dependencies:
   - pandas
   - netCDF4
   - numba
+  - setuptools=70.*
   - pip: 
     - numba_kdtree
