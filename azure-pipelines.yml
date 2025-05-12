@@ -21,7 +21,6 @@ stages:
   displayName: Build Package
   jobs:
     - job:
-      displayName: $(DEFAULT_POOL_IMAGE)
       pool:
         vmImage: $(DEFAULT_POOL_IMAGE)
       strategy:
