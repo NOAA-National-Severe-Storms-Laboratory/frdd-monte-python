@@ -72,7 +72,7 @@ stages:
           condition: eq(variables['AZ_DEVOPS_DEPLOY_GITHUB'], 'TRUE')
           inputs:
             gitHubConnection: $(AZ_DEVOPS_GITHUB_SERVICE_CONNECTION_NAME)
-            repositoryName: $(AZ_DEVOPS_GITHUB_ORGANIZATION_NAME)/MontePython
+            repositoryName: $(AZ_DEVOPS_GITHUB_ORGANIZATION_NAME)/frdd-monte-python
             isPreRelease: false
             tagSource: userSpecifiedTag
             assets: dist/*.whl
