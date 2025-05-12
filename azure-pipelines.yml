@@ -10,17 +10,15 @@ parameters:
 variables:
 - name: PACKAGE_VERSION
   value: ${{ parameters.package_version }}.$(Build.BuildId)
-- name: vmImageName
-  value: 'ubuntu-22.04'
 
 stages:
 - stage: Build
   displayName: Build Package
   jobs:
       - job:
-        displayName: ${{ variables.vmImageName }}
+        displayName: $(DEFAULT_POOL_IMAGE)
         pool:
-          vmImage: $(vmImageName)
+          vmImage: $(DEFAULT_POOL_IMAGE)
         strategy:
           matrix:
             Python38:
@@ -71,9 +69,10 @@ stages:
 
         - task: GithubRelease@1 
           displayName: 'Create GitHub Release'
+          condition: eq(variables['AZ_DEVOPS_DEPLOY_GITHUB'], 'TRUE')
           inputs:
-            gitHubConnection: WarnOnForecast-Github
-            repositoryName: WarnOnForecast/MontePython
+            gitHubConnection: $(AZ_DEVOPS_GITHUB_SERVICE_CONNECTION_NAME)
+            repositoryName: $(AZ_DEVOPS_GITHUB_ORGANIZATION_NAME)/MontePython
             isPreRelease: false
             tagSource: userSpecifiedTag
             assets: dist/*.whl
