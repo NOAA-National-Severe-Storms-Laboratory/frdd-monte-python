@@ -20,6 +20,7 @@ Update History:
 
 import numpy as np
 from scipy import ndimage as ndi
+from scipy.ndimage import convolve
 
 #copied from:
 # mcit_trim:
@@ -31,7 +32,8 @@ from scipy import ndimage as ndi
 def object_trim(labels_arr: np.ndarray,
               input_data: np.ndarray,
               min_strength: (int, float) = None,
-              min_size: (int) = None) -> np.ndarray:
+              min_size: (int) = None,
+              apply_despeckle = True) -> np.ndarray:
 
     """
     Process the objects data into new objects by combing or removing
@@ -122,6 +124,12 @@ def object_trim(labels_arr: np.ndarray,
         del id_maxdata[target_id]
         del id_size[target_id]
 
+    if apply_despeckle:
+        #improve me by despeckling each individual label 1,2,3......
+        binary_arr = np.where(labels_arr > 0, 1, 0)
+        despeck_arr = despeckle(binary_arr, 2)
+        labels_arr = np.where(despeck_arr > 0, labels_arr, 0)
+
     return labels_arr 
 
 
@@ -143,3 +151,28 @@ def get_neighboring_labels(labels_arr: np.ndarray,
     neighboring_labels = neighboring_labels[~(neighboring_labels == 0)]
 
     return neighboring_labels, border_mask
+
+
+def despeckle(binary_array: np.ndarray, min_neighbors=1):
+    """
+    Remove isolated pixels from a binary (0/1) array.
+    Keeps pixels with >= min_neighbors set pixels in the 8-connected neighborhood.
+
+    Parameters:
+    - binary_array: 2D numpy array of 0s and 1s
+    - min_neighbors: minimum number of ON neighbors to keep a pixel
+
+    Returns:
+    - despeckled binary array
+    """
+    # 3x3 kernel with center 0 (don't count the pixel itself)
+    kernel = np.array([[1, 1, 1],
+                       [1, 0, 1],
+                       [1, 1, 1]])
+
+    # Count neighbors
+    neighbor_count = convolve(binary_array, kernel, mode='constant', cval=0)
+
+    # Keep pixel if it has >= min_neighbors neighbors
+    return np.where(neighbor_count >= min_neighbors, binary_array, 0)
+
