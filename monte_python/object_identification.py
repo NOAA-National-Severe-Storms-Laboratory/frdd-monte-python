@@ -13,6 +13,13 @@ import copy
 import warnings
 warnings.simplefilter("ignore", UserWarning)
 
+#mcit
+import cv2
+from scipy import ndimage as ndi
+from skimage.segmentation import watershed
+from skimage.feature import peak_local_max
+
+
 from .object_matching import ObjectMatcher
 from .object_quality_control import QualityControler
 from .EnhancedWatershedSegmenter import EnhancedWatershed, rescale_data
@@ -126,7 +133,7 @@ def label(input_data, params, method='watershed', return_object_properties=True)
     ...                              return_object_properties=True,
     ...                              )    
     """
-    possible_methods = ['watershed', 'single_threshold', 'iterative_watershed']
+    possible_methods = ['watershed', 'single_threshold', 'iterative_watershed', 'mcit']
     is_good_method = method in possible_methods
     if not is_good_method:
         raise ValueError(f"{method} is not a valid method. The valid methods include {possible_methods}.")
@@ -136,6 +143,8 @@ def label(input_data, params, method='watershed', return_object_properties=True)
         ider = IterativeWatershed(**params)
     elif method == "watershed":
         ider = EnhancedWatershed(**params)
+    elif method == "mcit":
+        ider = MCIT_Identifier(**params)
     else:
         if 'bdry_thresh' not in params.keys():
             raise KeyError("""
@@ -560,4 +569,222 @@ class IterativeWatershed:
             final_labels[final_labels==value] = i+1
     
         return final_labels
+
+
+class MCIT_Identifier:
+    """
+    MCIT_Identifier labels input data based on the MCIT method.
+
+    This implementation is generic and can apply to any input data.
+    Send the dict parameters:
+        mcit_parameters["min_value"] = <some_value>
+        mcit_parameters["valley_depth"] = <some_value>
+
+    and the numpy array, input
+
+    For weather related storm identification we recommend linear vil that 
+    has had a 3x3 box median applied to it. Like this:
+
+    Code from hotspots repository
+    #Compute the linear version of VIL
+
+    #This transform changes the data in an important way
+    #lowering the peaks and stretching out the tails. The data
+    #becomes less spiky. We think this allows the watershed to do
+    #a better job
+    linear_vil = 10.0 * np.log10(vil_xy.data)
+
+    #We smooth the data to make the objects more contiguous using a 3x3 box
+    # average filter
+    kernel = np.ones((3, 3)) / 9
+    smlin_vil = cv2.filter2D(linear_vil, ddepth=-1, kernel=kernel)
+
+    with parameters of:
+    min_value = 10.0 * np.log10(min_vil_value=1.5)
+    valley_depth = 10.0 * np.log10(valley_depth=2.0)
+
+    also the valley_depth and minimum_value must be in the same units.
+
+    If you want to use something like dBZ Reflectivity try linearizing it.
+
+      Reference:
+
+        MCIT (multi-cell identification and tracking):
+        Jiaxi Hu, Daniel Rosenfeld, Dusan Zrnic, Earle Williams, Pengfei Zhang,
+            Jeffrey C. Snyder, Alexander Ryzhkov, Eyal Hashimshoni,
+            Renyi Zhang, Richard Weitz,
+        Tracking and characterization of convective cells through their
+            maturation into stratiform storm elements using polarimetric
+            radar and lightning detection,
+        Atmospheric Research,
+        Volume 226,
+        2019,
+        Pages 192-207,
+        ISSN 0169-8095,
+        https://doi.org/10.1016/j.atmosres.2019.04.015.
+
+    
+          Attributes
+        ----------
+        
+            params : list of dict
+                The parameters used for each iterations.
+                min_value
+                valley_depth
+    """
+    def __init__(self, params: dict = None):
+        self.min_value = np.nan 
+        self.valley_depth = np.nan
+        self.params = params
+
+        print("mcit params: " % (params))
+
+        if self.params is not None:
+            self.min_value = self.params['min_value'] 
+            self.valley_depth = self.params['valley_depth']
+        else:
+            #guessint from the data before label, don't do this
+            print("Warning: Guessing the min_value and valley depth for mcit is non-optimal")
+    
+    
+    def label(self, input_data):
+
+        if self.min_value == np.nan or self.valley_depth == np.nan:
+            mean = np.mean(input_data)
+            std = np.std(input_data)
+
+            self.min_value = mean - 2.*std
+            self.valley_depth = std/4.0
+            print("Warning: Using generic min_value and valley depth for mcit")
+            print("Warning: min_value %f Warning: valley_depth: %f " % (self.min_value, self.valley_depth))
+
+        ######################################################################
+        #from hotspots repository: 
+        #    https://github.com/NOAA-National-Severe-Storms-Laboratory/hotspots
+        ######################################################################
+        #yeah I'm lazy...
+        smlin_vil = input_data
+    
+        #We follow the techinque described in:
+        #https://scikit-image.org/docs/stable/auto_examples/segmentation/plot_watershed.html
+        #https://docs.opencv.org/4.x/d3/db4/tutorial_py_watershed.html
+        #  We use a similar technique to the above without all the prework.
+        #  We can't know starting locations so we use all values not equal to the 
+        # missing value as our unknown region
+    
+        #set the background data (white in image above) to 0 and the foreground data (non-white) to 1
+        valid = np.where(smlin_vil>=self.min_value, 1, 0)
+    
+        #the c++ code uses the vincent-sollie method and c library which is slightly different from
+        #the openCV interpretation
+        #Open CV requires "starting points" to begin the watershed. We generate those by finding the local
+        #maximums in the data.This will oversegment the image. We will join segments in a later step
+        #a footprint of 3x3 is a 9km-sq local max on a 1km grid
+        #the code cannot seperate peaks that are within the footprint
+        #
+        coords = peak_local_max(smlin_vil, footprint=np.ones((3, 3)),
+                                threshold_abs=1.0, min_distance=7)
+        mask = np.zeros(smlin_vil.shape, dtype=bool)
+        mask[tuple(coords.T)] = True
+        markers, _ = ndi.label(mask)
+        labels_arr = watershed(-smlin_vil, markers, mask=valid)
+    
+        #note: that this happens after the watershed is complete
+        #note: the min_value must be in linVIL units 
+        #note: 'Not an object' locations are labeled -1
+    
+        labels_arr = np.where(smlin_vil >= self.min_value, labels_arr, -1).astype(int)
+        #Using the trimmed labels we want to identify watersheds that are adjacent
+        #to one another. We do this by walking the image pixel by pixel. When we
+        #find adjacent watersheds we determine if those watersheds should be
+        #combined into a single watershed based on the "valley depth". This
+        #parameter compares the highest value of the data in each watershed to the
+        #"valley" location at the pixel. If the difference between the max data
+        # and the  "valley" depth isn't low enough then the watersheds are combined.
+    
+    
+        #exit after no move ids are combined
+        # dummy variable for the check below
+        old_number_of_ids = 9999
+        removed_ids = [] #once an id is removed it stays removed
+    
+        # iterate as long as we find new connections
+        while len(np.unique(labels_arr)[1:]) < old_number_of_ids:
+            ids = np.unique(labels_arr)[1:]
+            old_number_of_ids = len(ids)
+            max_vals = ndi.maximum(input_data, labels=labels_arr, index=ids)
+    
+            #Lets create a dict of ids/max_vil values for ease
+            #of use and understanding
+            idx = dict(zip(ids, max_vals))
+            # Sort by values in descending order
+            idx_by_max = dict(sorted(idx.items(), key=lambda item: item[1], reverse=True))
+    
+            #idx_sort = np.argsort(max_vals)
+            #ids_by_maximum = ids[idx_sort[::-1]]
+            #once an id is removed it stays removed
+            #removed_ids = []
+            for target_id in idx_by_max.keys():
+                if target_id in removed_ids:
+                    continue
+    
+                neighboring_labels, border_mask = self.get_neighboring_labels(
+                    labels_arr, target_id)
+    
+                if neighboring_labels.size == 0:
+                    continue
+    
+                for neighbor_id in neighboring_labels:
+                    #we removed the -1 values in get_neighboring_labels
+                    #if neighbor_id == -1:
+                    #    continue
+    
+                    # Find the border between label and neighbor
+                    border = (border_mask & (labels_arr == neighbor_id))
+    
+                    # our reference the weakest peak that is being checked
+                    peak_val = np.min(
+                        [idx_by_max[neighbor_id],
+                        idx_by_max[target_id]]
+                                     )
+    
+                    # Calculate the maximum value along the border in the data
+                    max_val_along_watershed = np.max(input_data[border])
+    
+                    # if the maximum value is close enough to the smaller peak VIL,
+                    # then we combine the objects
+                    if (peak_val - max_val_along_watershed) < self.valley_depth:
+                        #print("Combine: %d and %d"%(target_id, neighbor_id))
+                        labels_arr[labels_arr == neighbor_id] = target_id
+                        removed_ids.append(neighbor_id)
+
+
+        #monte python likes "0" not -1 as no object flag
+        labels_arr[labels_arr == -1] = 0
+        return labels_arr
+
+    def _binarize(self, input_data):
+        """ Binarizes input_data with the object boundary threshold"""
+        binary  = np.where(np.round(input_data, 10) >= round(thresh, 10), 1, 0) 
+        binary  = binary.astype(int)
+        return binary 
+
+    def get_neighboring_labels(self, labels_arr: np.ndarray,
+                           target_id: int):
+        structure = ndi.generate_binary_structure(2, 2)
+    
+        # Create a mask for the current region
+        region_mask = labels_arr == target_id
+    
+        # Dilate the region to find neighbors
+        border_mask = ndi.binary_dilation(
+            region_mask, structure=structure) & (labels_arr != target_id)
+    
+        # Find neighboring labels
+        neighboring_labels = np.unique(labels_arr[border_mask])
+    
+        #remove the -1 values
+        neighboring_labels = neighboring_labels[~(neighboring_labels == -1)]
+    
+        return neighboring_labels, border_mask
 
