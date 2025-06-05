@@ -65,7 +65,7 @@ def object_trim(labels_arr: np.ndarray,
     max_data = ndi.maximum(input_data, labels=labels_arr, index=ids)
     obj_sizes = ndi.sum(labels_arr > 0, labels=labels_arr, index=ids)
 
-    # dict with maximum VIL of all labelled cells
+    # dict with maximum data of all labelled cells
     id_maxdata = {test_id: max_data[i] for i, test_id in enumerate(ids)}
     # dict with size of all labelled cells
     id_size = {test_id: int(obj_sizes[i]) for i, test_id in enumerate(ids)}
@@ -125,10 +125,17 @@ def object_trim(labels_arr: np.ndarray,
         del id_size[target_id]
 
     if apply_despeckle:
-        #improve me by despeckling each individual label 1,2,3......
-        binary_arr = np.where(labels_arr > 0, 1, 0)
-        despeck_arr = despeckle(binary_arr, 2)
-        labels_arr = np.where(despeck_arr > 0, labels_arr, 0)
+        #global despeckle (works ok, faster)
+        #binary_arr = np.where( labels_arr >0, 1, 0)
+        #despeck_arr = despeckle(binary_arr, 2)
+        #labels_arr = np.where( despeck_arr > 0, labels_arr, 0)
+
+        #local id despeckle (works better, slower)
+        ids = np.unique(labels_arr)[1:]
+        for i in ids:
+            binary_arr = np.where( (labels_arr == i), 1, 0)
+            despeck_arr = despeckle(binary_arr, 2)
+            labels_arr = np.where( (labels_arr == i) & (despeck_arr == 0), 0, labels_arr)
 
     return labels_arr 
 
