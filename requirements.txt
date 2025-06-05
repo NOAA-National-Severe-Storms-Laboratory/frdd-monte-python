@@ -8,3 +8,4 @@ xarray >= 0.21.1
 numba
 numba_kdtree
 netCDF4
+opencv
