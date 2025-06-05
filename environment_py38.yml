@@ -14,5 +14,6 @@ dependencies:
   - netCDF4
   - numba
   - setuptools=70.*
+  - opencv
   - pip: 
     - numba_kdtree
