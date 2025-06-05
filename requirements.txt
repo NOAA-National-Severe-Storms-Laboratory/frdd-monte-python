@@ -1,5 +1,6 @@
 numpy
 scipy
+opencv-python
 scikit-learn
 scikit-image>=0.19.0
 pandas
@@ -8,4 +9,3 @@ xarray >= 0.21.1
 numba
 numba_kdtree
 netCDF4
-opencv
