@@ -671,7 +671,12 @@ class MCIT_Identifier:
         #  We use a similar technique to the above without all the prework.
         #  We can't know starting locations so we use all values not equal to the 
         # missing value as our unknown region
-    
+   
+        #reducing the min_value by valley_depth eliminates much of the post watershed
+        #speckling that occurs. Other types of despecking should be applied where regions of 
+        #2-5 sized groups are removed. Delabel the data and then relabel the data and then trim
+        #again based on size. --TODO-- JMK
+        #
         #set the background data (white in image above) to 0 and the foreground data (non-white) to 1
         valid = np.where(smlin_vil>=self.min_value, 1, 0)
     
@@ -759,8 +764,9 @@ class MCIT_Identifier:
                         removed_ids.append(neighbor_id)
 
 
-        #monte python likes "0" not -1 as no object flag
+        #monte python likes "0" not "-1" as no object flag
         labels_arr[labels_arr == -1] = 0
+
         return labels_arr
 
     def _binarize(self, input_data):
