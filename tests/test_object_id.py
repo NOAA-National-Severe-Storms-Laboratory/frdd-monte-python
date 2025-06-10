@@ -25,7 +25,7 @@ class TestObjectID(TestGetData):
     """ Test the object ID code """
     def test_base_method(self):
         """ Giving a bad method and raising the error """
-        possible_methods = ['watershed', 'single_threshold', 'iterative_watershed']
+        possible_methods = ['watershed', 'single_threshold', 'iterative_watershed', 'mcit']
         method = 'single threshold'
         with self.assertRaises(Exception) as ex:
             monte_python.label( input_data = self.storms,

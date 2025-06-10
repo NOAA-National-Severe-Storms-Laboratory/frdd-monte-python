@@ -105,3 +105,27 @@ def get_valid_time(wofs_file):
     
     return valid_label 
 
+#from matplotlib.colors import (BoundaryNorm, ListedColormap,
+#                               LinearSegmentedColormap, Normalize)
+from matplotlib.colors import LinearSegmentedColormap
+def get_obj_cmap():
+    import matplotlib.pyplot as plt
+    import numpy as np
+    # Get the existing colormap
+    cmap = plt.get_cmap('tab20b')
+    # Extract the colors
+    colors = cmap(np.linspace(0, 1, cmap.N))
+    #
+    #we need a colormap to 200 (or more?), but with alternating colors that are not close
+    #
+    color_index = [0,19,4,15,8,3,16,7,12,9,1,18,5,14,10,17,2,13,6,11]
+    object_colors = []
+    white = [1., 1., 1. , 1.]
+    object_colors.append(white)
+
+    for l in range(10): #need 200 so 20*10
+        for n in range(cmap.N):
+            object_colors.append(colors[color_index[n]])
+
+    object_cmap = LinearSegmentedColormap.from_list(name='object_index', colors=object_colors)
+    return object_cmap

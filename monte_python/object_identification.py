@@ -767,6 +767,18 @@ class MCIT_Identifier:
         #monte python likes "0" not "-1" as no object flag
         labels_arr[labels_arr == -1] = 0
 
+        #monte python kinda expects the labels to be in order. We can
+        #reindex the space like this
+        # Unique sorted values
+        unique_values = np.unique(labels_arr)
+
+        # Mapping from value to index
+        value_to_index = {val: idx for idx, val in enumerate(unique_values)}
+
+        # Vectorized replacement using numpy
+        vectorized_map = np.vectorize(lambda x: value_to_index[x])
+        labels_arr = vectorized_map(labels_arr)
+
         return labels_arr
 
     def _binarize(self, input_data):
